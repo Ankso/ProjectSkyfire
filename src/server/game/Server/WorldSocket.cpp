@@ -927,19 +927,16 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     // Checks gmlevel per Realm
     result =
         LoginDatabase.PQuery ("SELECT "
-                              "RealmID, "            //0
-                              "gmlevel "             //1
-                              "FROM account_access "
-                              "WHERE id = '%d'"
-                              " AND (RealmID = '%d'"
-                              " OR RealmID = '-1')",
-                              id, realmID);
+                              "gmlevel "             //0
+                              "FROM account"
+                              "WHERE id = '%d'",
+                              id);
     if (!result)
         security = 0;
     else
     {
         fields = result->Fetch();
-        security = fields[1].GetInt32();
+        security = fields[0].GetInt32();
     }
 
     // Re-check account ban (same check as in realmd)

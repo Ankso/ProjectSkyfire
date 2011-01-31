@@ -154,7 +154,7 @@ uint32 AccountMgr::GetId(std::string username)
 
 uint32 AccountMgr::GetSecurity(uint32 acc_id)
 {
-    QueryResult result = LoginDatabase.PQuery("SELECT gmlevel FROM account_access WHERE id = '%u'", acc_id);
+    QueryResult result = LoginDatabase.PQuery("SELECT gmlevel FROM account WHERE id = '%u'", acc_id);
     if (result)
     {
         uint32 sec = (*result)[0].GetUInt32();
@@ -167,8 +167,8 @@ uint32 AccountMgr::GetSecurity(uint32 acc_id)
 uint32 AccountMgr::GetSecurity(uint64 acc_id, int32 realm_id)
 {
     QueryResult result = (realm_id == -1)
-        ? LoginDatabase.PQuery("SELECT gmlevel FROM account_access WHERE id = '%u' AND RealmID = '%d'", acc_id, realm_id)
-        : LoginDatabase.PQuery("SELECT gmlevel FROM account_access WHERE id = '%u' AND (RealmID = '%d' OR RealmID = '-1')", acc_id, realm_id);
+        ? LoginDatabase.PQuery("SELECT gmlevel FROM account WHERE id = '%u'", acc_id)
+        : LoginDatabase.PQuery("SELECT gmlevel FROM account WHERE id = '%u'", acc_id);
     if (result)
     {
         uint32 sec = (*result)[0].GetUInt32();

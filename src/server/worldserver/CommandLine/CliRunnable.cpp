@@ -570,11 +570,9 @@ bool ChatHandler::HandleAccountOnlineListCommand(const char* /*args*/)
         ///- Get the username, last IP and GM level of each account
         // No SQL injection. account is uint32.
         QueryResult resultLogin =
-            LoginDatabase.PQuery("SELECT a.username, a.last_ip, aa.gmlevel, a.expansion "
-                                 "FROM account a "
-                                 "LEFT JOIN account_access aa "
-                                 "ON (a.id = aa.id) "
-                                 "WHERE a.id = '%u'", account);
+            LoginDatabase.PQuery("SELECT username, last_ip, gmlevel, expansion "
+                                 "FROM account "
+                                 "WHERE id = '%u'", account);
         if (resultLogin)
         {
             Field *fieldsLogin = resultLogin->Fetch();

@@ -34,19 +34,19 @@ char const* const barGoLink::full  = "*";
 barGoLink::~barGoLink()
 {
     if (!m_showOutput)
-		return;
-	printf( "\n" );
+       return;
+    printf( "\n" );
     fflush(stdout);
 }
 
-barGoLink::barGoLink(int row_count)
+barGoLink::barGoLink( int row_count )
 {
     rec_no    = 0;
     rec_pos   = 0;
     indic_len = 50;
     num_rec   = row_count;
-	if (!m_showOutput)
-		return;
+    if (!m_showOutput)
+       return;
     #ifdef _WIN32
     printf( "\x3D" );
     #else
@@ -64,8 +64,8 @@ barGoLink::barGoLink(int row_count)
 void barGoLink::step()
 {
     if (!m_showOutput)
-		return;
-	uint64 i, n;
+       return;
+    uint64 i, n;
 
     if ( num_rec == 0 ) return;
     ++rec_no;

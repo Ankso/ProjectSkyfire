@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://www.getmangos.com/>
  *
- * Copyright (C) 2008-2010 Trinity <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2011 Trinity <http://www.trinitycore.org/>
  *
- * Copyright (C) 2010-2011 CactusEMU <http://www.cactusemu.com/>
+ * Copyright (C) 2010-2011 Project SkyFire <http://www.projectskyfire.org/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,12 +12,12 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
 /// \addtogroup Trinityd
@@ -118,7 +118,7 @@ void utf8print(void* /*arg*/, const char* str)
 
 void commandFinished(void*, bool /*success*/)
 {
-    printf("C> ");
+    printf("SkyFire> ");
     fflush(stdout);
 }
 /// Delete a user account and all associated characters in this realm
@@ -709,7 +709,7 @@ void CliRunnable::run()
 
     // print this here the first time
     // later it will be printed after command queue updates
-    printf("C>");
+    printf("SkyFire>");
 
     ///- As long as the World is running (no World::m_stopEvent), get the command line and handle it
     while (!World::IsStopped())
@@ -722,7 +722,7 @@ void CliRunnable::run()
         char commandbuf[256];
         command_str = fgets(commandbuf,sizeof(commandbuf),stdin);
         #else
-        command_str = readline("C>");
+        command_str = readline("SkyFire>");
         rl_bind_key('\t',rl_complete);
         #endif
         if (command_str != NULL)
@@ -737,7 +737,7 @@ void CliRunnable::run()
             if (!*command_str)
             {
                 #if PLATFORM == WINDOWS
-                printf("C>");
+                printf("SkyFire>");
                 #endif
                 continue;
             }
@@ -746,7 +746,7 @@ void CliRunnable::run()
             if (!consoleToUtf8(command_str,command))         // convert from console encoding to utf8
             {
                 #if PLATFORM == WINDOWS
-                printf("C>");
+                printf("SkyFire>");
                 #endif
                 continue;
             }

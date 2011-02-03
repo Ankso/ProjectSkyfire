@@ -1,19 +1,23 @@
 /*
- * Copyright (C) 2008-2010 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://www.getmangos.com/>
  *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
+ * Copyright (C) 2008-2011 Trinity <http://www.trinitycore.org/>
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
+ * Copyright (C) 2010-2011 Project SkyFire <http://www.projectskyfire.org/>
  *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
 #ifndef TRINITYCORE_GUILD_H
@@ -115,26 +119,26 @@ enum GuildCommandError
 
 enum GuildEvents
 {
-    GE_PROMOTION                    = 0x00,
-    GE_DEMOTION                     = 0x01,
-    GE_MOTD                         = 0x02,
-    GE_JOINED                       = 0x03,
-    GE_LEFT                         = 0x04,
-    GE_REMOVED                      = 0x05,
-    GE_LEADER_IS                    = 0x06,
-    GE_LEADER_CHANGED               = 0x07,
-    GE_DISBANDED                    = 0x08,
-    GE_TABARDCHANGE                 = 0x09,
-    GE_UNK1                         = 0x0A,                 // string, string EVENT_GUILD_ROSTER_UPDATE tab content change?
-    GE_UNK2                         = 0x0B,                 // EVENT_GUILD_ROSTER_UPDATE
-    GE_SIGNED_ON                    = 0x0C,                 // ERR_FRIEND_ONLINE_SS
-    GE_SIGNED_OFF                   = 0x0D,                 // ERR_FRIEND_OFFLINE_S
-    GE_GUILDBANK_BAGSLOTS_CHANGED   = 0x0E,                 // EVENT_GUILDBANK_BAGSLOTS_CHANGED
-    GE_GUILDBANK_TAB_PURCHASED      = 0x0F,                 // EVENT_GUILDBANK_UPDATE_TABS
-    GE_UNK5                         = 0x10,                 // EVENT_GUILDBANK_UPDATE_TABS
-    GE_GUILDBANK_MONEY_UPDATE       = 0x11,                 // EVENT_GUILDBANK_UPDATE_MONEY, string 0000000000002710 is 1 gold
-    GE_GUILDBANK_MONEY_WITHDRAWN    = 0x12,                 // MSG_GUILD_BANK_MONEY_WITHDRAWN
-    GE_GUILDBANK_TEXT_CHANGED       = 0x13                  // EVENT_GUILDBANK_TEXT_CHANGED
+    GE_PROMOTION                    = 0xFF,
+    GE_DEMOTION                     = 0xFF,
+    GE_MOTD                         = 0x03,
+    GE_JOINED                       = 0xFF,
+    GE_LEFT                         = 0xFF,
+    GE_REMOVED                      = 0xFF,
+    GE_LEADER_IS                    = 0xFF,
+    GE_LEADER_CHANGED               = 0xFF,
+    GE_DISBANDED                    = 0xFF,
+    GE_TABARDCHANGE                 = 0xFF,
+    GE_UNK1                         = 0xFF,                 // string, string EVENT_GUILD_ROSTER_UPDATE tab content change?
+    GE_UNK2                         = 0xFF,                 // EVENT_GUILD_ROSTER_UPDATE
+    GE_SIGNED_ON                    = 0x10,                 // ERR_FRIEND_ONLINE_SS
+    GE_SIGNED_OFF                   = 0xFF,                 // ERR_FRIEND_OFFLINE_S
+    GE_GUILDBANKBAGSLOTS_CHANGED    = 0xFF,                 // EVENT_GUILDBANKBAGSLOTS_CHANGED
+    GE_BANKTAB_PURCHASED            = 0xFF,                 // EVENT_GUILDBANK_UPDATE_TABS
+    GE_UNK5                         = 0xFF,                 // EVENT_GUILDBANK_UPDATE_TABS
+    GE_GUILDBANK_UPDATE_MONEY       = 0xFF,                 // EVENT_GUILDBANK_UPDATE_MONEY, string 0000000000002710 is 1 gold
+    GE_GUILD_BANK_MONEY_WITHDRAWN   = 0xFF,                 // MSG_GUILD_BANK_MONEY_WITHDRAWN
+    GE_GUILDBANK_TEXT_CHANGED       = 0xFF,                 // EVENT_GUILDBANK_TEXT_CHANGED
 };
 
 enum PetitionTurns
@@ -255,6 +259,13 @@ private:
             uint32 value;
             uint32 resetTime;
         };
+        
+		struct Profession
+        {
+            uint32 skillID;
+            uint32 title;
+            uint32 level;
+        };
 
     public:
         Member(uint32 guildId, const uint64& guid, uint8 rankId) : m_guildId(guildId), m_guid(guid), m_logoutTime(::time(NULL)), m_rankId(rankId) { }
@@ -306,6 +317,8 @@ private:
         std::string m_officerNote;
 
         RemainingValue m_bankRemaining[GUILD_BANK_MAX_TABS + 1];
+        uint32 achievementPoints;
+        Profession professions[2];
     };
 
     // Base class for event entries
@@ -594,6 +607,7 @@ public:
     const std::string& GetName() const { return m_name; }
     const std::string& GetMOTD() const { return m_motd; }
     const std::string& GetInfo() const { return m_info; }
+	void SwitchRank(uint32 oldRank, uint32 newRank);
 
     // Handle client commands
     void HandleRoster(WorldSession *session = NULL);          // NULL = broadcast
@@ -659,6 +673,7 @@ public:
     bool AddMember(const uint64& guid, uint8 rankId = GUILD_RANK_NONE);
     void DeleteMember(const uint64& guid, bool isDisbanding = false, bool isKicked = false);
     bool ChangeMemberRank(const uint64& guid, uint8 newRank);
+	RankInfo & GetRankInfo(uint32 rankId) {return m_ranks[rankId];}
 
     // Bank
     void SwapItems(Player* player, uint8 tabId, uint8 slotId, uint8 destTabId, uint8 destSlotId, uint32 splitedAmount);

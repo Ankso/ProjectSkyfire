@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://www.getmangos.com/>
  *
- * Copyright (C) 2008-2010 Trinity <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2011 Trinity <http://www.trinitycore.org/>
  *
- * Copyright (C) 2010-2011 CactusEMU <http://www.cactusemu.com/>
+ * Copyright (C) 2010-2011 Project SkyFire <http://www.projectskyfire.org/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,12 +12,12 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
 #include "Common.h"
@@ -536,7 +536,7 @@ int32 AuraEffect::CalculateAmount(Unit *caster)
                         DoneActualBenefit += caster->SpellBaseDamageBonus(GetSpellSchoolMask(m_spellProto)) * 0.8068f;
                         // Glyph of Ice Barrier: its weird having a SPELLMOD_ALL_EFFECTS here but its blizzards doing :)
                         // Glyph of Ice Barrier is only applied at the spell damage bonus because it was already applied to the base value in CalculateSpellDamage
-                        DoneActualBenefit = caster->ApplyEffectModifiers(GetSpellProto(), m_effIndex, (int32)DoneActualBenefit);
+                        DoneActualBenefit = float(caster->ApplyEffectModifiers(GetSpellProto(), m_effIndex, (int32)DoneActualBenefit));
                     }
                     // Fire Ward
                     else if(GetSpellProto()->SpellFamilyFlags[0] & 0x8 && GetSpellProto()->SpellFamilyFlags[2] & 0x8)
@@ -573,14 +573,14 @@ int32 AuraEffect::CalculateAmount(Unit *caster)
                         DoneActualBenefit += caster->SpellBaseHealingBonus(GetSpellSchoolMask(m_spellProto)) * bonus;
                         // Improved PW: Shield: its weird having a SPELLMOD_ALL_EFFECTS here but its blizzards doing :)
                         // Improved PW: Shield is only applied at the spell healing bonus because it was already applied to the base value in CalculateSpellDamage
-                        DoneActualBenefit = caster->ApplyEffectModifiers(GetSpellProto(), m_effIndex, (int32)DoneActualBenefit);
+                        DoneActualBenefit = float(caster->ApplyEffectModifiers(GetSpellProto(), m_effIndex, (int32)DoneActualBenefit));
                         DoneActualBenefit *= caster->CalculateLevelPenalty(GetSpellProto());
 
                         amount += (int32)DoneActualBenefit;
 
                         // Twin Disciplines
                         if (AuraEffect const* pAurEff = caster->GetAuraEffect(SPELL_AURA_ADD_PCT_MODIFIER, SPELLFAMILY_PRIEST, 0x400000, 0, 0, caster->GetGUID()))
-                            amount *= (100.0f + pAurEff->GetAmount()) / 100.0f;
+                            amount *= int32((100.0f + pAurEff->GetAmount()) / 100.0f);
 
                         // Focused Power                       
                         // Reuse variable, not sure if this code below can be moved before Twin Disciplines
@@ -600,17 +600,17 @@ int32 AuraEffect::CalculateAmount(Unit *caster)
 
                         DoneActualBenefit += caster->SpellBaseHealingBonus(GetSpellSchoolMask(m_spellProto)) * bonus;
                         // Divine Guardian is only applied at the spell healing bonus because it was already applied to the base value in CalculateSpellDamage
-                        DoneActualBenefit = caster->ApplyEffectModifiers(GetSpellProto(), m_effIndex, (int32)DoneActualBenefit);
+                        DoneActualBenefit = float(caster->ApplyEffectModifiers(GetSpellProto(), m_effIndex, (int32)DoneActualBenefit));
                         DoneActualBenefit *= caster->CalculateLevelPenalty(GetSpellProto());
 
                         amount += (int32)DoneActualBenefit;
                         
                         // Arena - Dampening
                         if (AuraEffect const* pAurEff = caster->GetAuraEffect(74410, 0))
-                            amount *= (100.0f + pAurEff->GetAmount()) / 100.0f;
+                            amount *= int32((100.0f + pAurEff->GetAmount()) / 100.0f);
                         // Battleground - Dampening
                         else if (AuraEffect const* pAurEff = caster->GetAuraEffect(74411, 0))
-                            amount *= (100.0f + pAurEff->GetAmount()) / 100.0f;
+                            amount *= int32((100.0f + pAurEff->GetAmount()) / 100.0f);
 
                         return amount;
                     }

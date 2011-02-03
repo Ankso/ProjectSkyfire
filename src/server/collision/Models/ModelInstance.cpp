@@ -1,19 +1,23 @@
 /*
- * Copyright (C) 2008-2010 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://www.getmangos.com/>
  *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
+ * Copyright (C) 2008-2011 Trinity <http://www.trinitycore.org/>
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
+ * Copyright (C) 2010-2011 Project SkyFire <http://www.projectskyfire.org/>
  *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
 #include "ModelInstance.h"
@@ -140,12 +144,14 @@ namespace VMAP
         // child bounds are defined in object space:
         Vector3 pModel = iInvRot * (p - iPos) * iInvScale;
         //Vector3 zDirModel = iInvRot * Vector3(0.f, 0.f, -1.f);
-        float zDist;
-        if (info.hitModel->GetLiquidLevel(pModel, zDist))
+        float zLevel;
+        if (info.hitModel->GetLiquidLevel(pModel, zLevel))
         {
-            // calculate world height (zDist in model coords):
-            // assume WMO not tilted (wouldn't make much sense anyway)
-            liqHeight = zDist * iScale + iPos.z;
+            // despite making little sense, there ARE some (slightly) tilted WMOs...
+            // we can only determine liquid height in LOCAL z-direction (heightmap data),
+            // so with increasing tilt, liquid calculation gets increasingly wrong...not my fault, really :p
+            liqHeight = (zLevel - pModel.z) * iScale + p.z; 
+
             return true;
         }
         return false;

@@ -1,19 +1,23 @@
 /*
- * Copyright (C) 2008-2010 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://www.getmangos.com/>
  *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
+ * Copyright (C) 2008-2011 Trinity <http://www.trinitycore.org/>
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
+ * Copyright (C) 2010-2011 Project SkyFire <http://www.projectskyfire.org/>
  *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
 #include "Common.h"
@@ -274,7 +278,7 @@ void InstanceSaveManager::CleanupAndPackInstances()
     CharacterDatabase.DirectExecute("UPDATE characters AS tmp LEFT JOIN instance ON tmp.instance_id = instance.id SET tmp.instance_id = 0 WHERE tmp.instance_id > 0 AND instance.id IS NULL");
 
     // Create new index
-    CharacterDatabase.DirectExecute("ALTER TABLE instance ADD newid INT UNSIGNED AUTO_INCREMENT, ADD INDEX(newid)");
+    //CharacterDatabase.DirectExecute("ALTER TABLE instance ADD newid INT UNSIGNED AUTO_INCREMENT, ADD INDEX(newid)");
 
     // Update old ids
     CharacterDatabase.DirectExecute("UPDATE corpse                  AS tmp LEFT JOIN instance ON tmp.instance    = instance.id SET tmp.instance    = instance.newid WHERE tmp.instance    > 0");
@@ -288,7 +292,7 @@ void InstanceSaveManager::CleanupAndPackInstances()
     CharacterDatabase.Query("UPDATE instance SET id = newid");
 
     // Finally drop the no longer needed column
-    CharacterDatabase.Query("ALTER TABLE instance DROP COLUMN newid");
+    //CharacterDatabase.Query("ALTER TABLE instance DROP COLUMN newid");
     
     // Bake some cookies for click
     sLog.outString(">> Cleaned up and packed instances");

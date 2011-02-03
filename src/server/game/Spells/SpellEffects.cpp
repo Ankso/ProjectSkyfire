@@ -1,7 +1,9 @@
 /*
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://www.getmangos.com/>
  *
- * Copyright (C) 2008-2010 Trinity <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2011 Trinity <http://www.trinitycore.org/>
+ *
+ * Copyright (C) 2010-2011 Project SkyFire <http://www.projectskyfire.org/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -10,12 +12,12 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
 #include "Common.h"
@@ -3458,7 +3460,7 @@ void Spell::EffectAddHonor(SpellEffIndex /*effIndex*/)
     // do not allow to add too many honor for player (50 * 21) = 1040 at level 70, or (50 * 31) = 1550 at level 80
     if (damage <= 50)
     {
-        uint32 honor_reward = Trinity::Honor::hk_honor_at_level(unitTarget->getLevel(), damage);
+        uint32 honor_reward = Trinity::Honor::hk_honor_at_level(unitTarget->getLevel(), float(damage));
         unitTarget->ToPlayer()->RewardHonor(NULL, 1, honor_reward);
         sLog.outDebug("SpellEffect::AddHonor (spell_id %u) rewards %u honor points (scale) to player: %u", m_spellInfo->Id, honor_reward, unitTarget->ToPlayer()->GetGUIDLow());
     }
@@ -4578,10 +4580,13 @@ void Spell::EffectScriptEffect(SpellEffIndex effIndex)
                     // Triggered spell id dependent on riding skill and zone
                     bool canFly = true;
                     uint32 v_map = GetVirtualMapForMapAndZone(unitTarget->GetMapId(), unitTarget->GetZoneId());
-                    if (v_map != 530 && v_map != 571)
+                    if (v_map != 530 && v_map != 571 && v_map != 0)
                         canFly = false;
 
                     if (canFly && v_map == 571 && !unitTarget->ToPlayer()->HasSpell(54197))
+                        canFly = false;
+					
+					if(canFly && v_map == 0 && !unitTarget->ToPlayer()->HasSpell(90267))
                         canFly = false;
 
                     float x, y, z;
@@ -4623,10 +4628,13 @@ void Spell::EffectScriptEffect(SpellEffIndex effIndex)
                     // Triggered spell id dependent on riding skill and zone
                     bool canFly = true;
                     uint32 v_map = GetVirtualMapForMapAndZone(unitTarget->GetMapId(), unitTarget->GetZoneId());
-                    if (v_map != 530 && v_map != 571)
+                    if (v_map != 530 && v_map != 571 && v_map != 0)
                         canFly = false;
 
                     if (canFly && v_map == 571 && !unitTarget->ToPlayer()->HasSpell(54197))
+                        canFly = false;
+					
+					if(canFly && v_map == 0 && !unitTarget->ToPlayer()->HasSpell(90267))
                         canFly = false;
 
                     float x, y, z;
@@ -4948,11 +4956,14 @@ void Spell::EffectScriptEffect(SpellEffIndex effIndex)
 						// Triggered spell id dependent on riding skill and zone
 						bool canFly = true;
 						uint32 v_map = GetVirtualMapForMapAndZone(unitTarget->GetMapId(), unitTarget->GetZoneId());
-						if (v_map != 530 && v_map != 571)
+						if (v_map != 530 && v_map != 571 && v_map != 0)
 							canFly = false;
 
 						if (canFly && v_map == 571 && !unitTarget->ToPlayer()->HasSpell(54197))
 							canFly = false;
+
+						if(canFly && v_map == 0 && !unitTarget->ToPlayer()->HasSpell(90267))
+                            canFly = false;
 
 						float x, y, z;
 						unitTarget->GetPosition(x, y, z);
@@ -4994,10 +5005,13 @@ void Spell::EffectScriptEffect(SpellEffIndex effIndex)
                     // Triggered spell id dependent on riding skill and zone
                     bool canFly = true;
                     uint32 v_map = GetVirtualMapForMapAndZone(unitTarget->GetMapId(), unitTarget->GetZoneId());
-                    if (v_map != 530 && v_map != 571)
+                    if (v_map != 530 && v_map != 571 && v_map != 0)
                         canFly = false;
 
                     if (canFly && v_map == 571 && !unitTarget->ToPlayer()->HasSpell(54197))
+                        canFly = false;
+
+					if (canFly && v_map == 0 && !unitTarget->ToPlayer()->HasSpell(90267))
                         canFly = false;
 
                     float x, y, z;
@@ -5057,10 +5071,13 @@ void Spell::EffectScriptEffect(SpellEffIndex effIndex)
                     // Triggered spell id dependent on riding skill and zone
                     bool canFly = true;
                     uint32 v_map = GetVirtualMapForMapAndZone(unitTarget->GetMapId(), unitTarget->GetZoneId());
-                    if (v_map != 530 && v_map != 571)
+                    if (v_map != 530 && v_map != 571 && v_map != 0)
                         canFly = false;
 
                     if (canFly && v_map == 571 && !unitTarget->ToPlayer()->HasSpell(54197))
+                        canFly = false;
+
+					if(canFly && v_map == 0 && !unitTarget->ToPlayer()->HasSpell(90267))
                         canFly = false;
 
                     float x, y, z;

@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://www.getmangos.com/>
  *
- * Copyright (C) 2008-2010 Trinity <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2011 Trinity <http://www.trinitycore.org/>
  *
- * Copyright (C) 2010-2011 CactusEMU <http://www.cactusemu.com/>
+ * Copyright (C) 2010-2011 Project SkyFire <http://www.projectskyfire.org/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,12 +12,12 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
 #include "Common.h"
@@ -42,103 +42,6 @@
 #ifdef _DEBUG_VMAPS
 #include "VMapFactory.h"
 #endif
-
-uint32 testopcode = 0x0000;
-
-void SendTestPacket(uint32 opcodeID, Player* plr)
-{
-    //Basic SMSG_FORCE_* opcode.
-    WorldPacket data;
-    data.Initialize(opcodeID, (8+4+4));
-    data.append(plr->GetPackGUID());
-    data << uint32(0);
-    data << float(100.0f);
-    plr->SendMessageToSet(&data,true);
-}
-
-bool ChatHandler::HandleOpcodeTestCommand(const char* args)
-{
-    std::istringstream arg(args);
-        
-    std::string command;
-    arg >> command;
-    
-    if (command == "reset")
-    {
-        uint32 opcode = 0;
-        if (!arg.eof())
-            arg >> std::hex >> opcode;
-        
-        testopcode = opcode;
-        return true;
-    }
-        
-    if (command == "jump")
-    {
-        uint32 jump = 0;
-        if (!arg.eof())
-            arg >> std::hex >> jump;
-        if (jump == 0)
-            jump = 0xFF;
-        
-        sLog.outString("Performing opcode jump!");
-        for (uint32 i = 0; i < jump; i++)
-        {
-            if (strcmp(LookupOpcodeName(testopcode), "UNKNOWN") == 0)
-            {
-                PSendSysMessage("Opcode: 0x%.4X - %s",testopcode,LookupOpcodeName(testopcode));
-                SendTestPacket(testopcode, m_session->GetPlayer());
-            }
-            testopcode++;
-        }
-        
-        PSendSysMessage("Opcodes: 0x%.4X - 0x%.4X",testopcode-jump,testopcode);
-        return true;
-    }
-        
-    if (command == "jumpback")
-    {
-        uint32 jump = 0;
-        if (!arg.eof())
-            arg >> std::hex >> jump;
-        if (jump == 0)
-            jump = 0xFF;
-            
-        PSendSysMessage("Performing opcode jumpback!(0x%.4X)", jump);
-        testopcode = testopcode - jump;
-        return true;
-    }
-    
-    if (command == "repeat")
-    {
-        PSendSysMessage("Opcode: 0x%.4X",testopcode);
-        SendTestPacket(testopcode, m_session->GetPlayer());
-        return true;
-    }
-    
-    if (command == "back")
-    {
-        PSendSysMessage("Opcode: 0x%.4X",--testopcode);
-        return true;
-    }
-    
-    if( command == "send")
-    {
-        if(arg.eof())
-            return false;
-        uint32 opcode;
-        arg >> std::hex >> opcode;
-    
-        PSendSysMessage("Opcode: 0x%.4X - %s",opcode,LookupOpcodeName(opcode));
-        SendTestPacket(opcode, m_session->GetPlayer());
-        return true;
-    }
-        
-    PSendSysMessage("Opcode: 0x%.4X - %s",testopcode,LookupOpcodeName(testopcode));
-    SendTestPacket(testopcode++, m_session->GetPlayer());
-
-	return true;
-}
 
 //-----------------------Npc Commands-----------------------
 bool ChatHandler::HandleNpcSayCommand(const char* args)

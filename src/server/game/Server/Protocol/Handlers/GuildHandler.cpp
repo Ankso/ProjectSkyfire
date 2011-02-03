@@ -1,19 +1,23 @@
 /*
- * Copyright (C) 2008-2010 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://www.getmangos.com/>
  *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
+ * Copyright (C) 2008-2011 Trinity <http://www.trinitycore.org/>
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
+ * Copyright (C) 2010-2011 Project SkyFire <http://www.projectskyfire.org/>
  *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
 #include "Common.h"
@@ -43,10 +47,11 @@ void WorldSession::HandleGuildQueryOpcode(WorldPacket& recvPacket)
 {
     sLog.outDebug("WORLD: Received CMSG_GUILD_QUERY");
 
-    uint32 guildId;
+    uint64 guildId;
     recvPacket >> guildId;
     // Use received guild id to access guild method (not player's guild id)
-    if (Guild* pGuild = sObjectMgr.GetGuildById(guildId))
+    uint32 lowGuildId = GUID_LOPART(guildId);
+    if (Guild *pGuild = sObjectMgr.GetGuildById(lowGuildId))
         pGuild->HandleQuery(this);
     else
         Guild::SendCommandResult(this, GUILD_CREATE_S, ERR_GUILD_PLAYER_NOT_IN_GUILD);
@@ -223,40 +228,103 @@ void WorldSession::HandleGuildSetOfficerNoteOpcode(WorldPacket& recvPacket)
 
 void WorldSession::HandleGuildRankOpcode(WorldPacket& recvPacket)
 {
+    /*  Packet Breakdown 
+        FF FF FF FF =>Bank permissions 1
+        FF FF FF FF =>Bank permissions 2
+        FF FF FF FF =>Bank permissions 3
+        FF FF FF FF =>Bank permissions 4
+        FF FF FF FF =>Bank permissions 5
+        FF FF FF FF =>Bank permissions 6
+        FF FF FF FF =>Bank permissions 7
+        FF FF FF FF =>Bank permissions 8
+        00 00 00 00 =>Bank withdrawal 1
+        00 00 00 00 =>Bank withdrawal 2
+        00 00 00 00 =>Bank withdrawal 3
+        00 00 00 00 =>Bank withdrawal 4
+        00 00 00 00 =>Bank withdrawal 5
+        00 00 00 00 =>Bank withdrawal 6
+        00 00 00 00 =>Bank withdrawal 7
+        00 00 00 00 =>Bank withdrawal 8
+        00 00 00 00 =>new rankID
+        00 00 00 00 =>last rankID
+        04 00 00 00 00 00 00 00 =>playerguid
+        FF F1 1D 00 =>new permissions
+        FF F1 1D 00 =>last permissions
+        02 00 00 00 00 00 F6 1F =>guildId
+        FF FF FF FF =>max bank withdrawal
+        47 75 69 6C 64 20 4D 61 73 74 65 72 C2 B0 30 00 =>rankName
+    */
+
+    uint32 BankRights[GUILD_BANK_MAX_TABS];
+    for(uint32 i = 0; i < GUILD_BANK_MAX_TABS; i++)
+        recvPacket >> BankRights[i];
+
+    uint32 stackPerDay[GUILD_BANK_MAX_TABS];
+    for(uint32 i = 0; i < GUILD_BANK_MAX_TABS; i++)
+        recvPacket >> stackPerDay[i];
+
+    uint32 new_rankId;
+    recvPacket >> new_rankId;
+
+    uint32 old_rankId;
+    recvPacket >> old_rankId;
+
+    uint64 playerGuid;
+    recvPacket >> playerGuid;
+
+    uint32 new_rights;
+    recvPacket >> new_rights;
+
+    uint32 old_rights;
+    recvPacket >> old_rights;
+
+    uint64 guildId;
+    recvPacket >> guildId;
+
+    uint32 money;
+    recvPacket >> money;
+
+    std::string rankName;
+    recvPacket >> rankName;
+
     sLog.outDebug("WORLD: Received CMSG_GUILD_RANK");
 
+	if (GetPlayer()->GetGUID() != playerGuid)
+    {
+        printf("CMSG_GUILD_RANK: The playerGUID in the packet does not match the current player!\n");
+        recvPacket.rpos(recvPacket.wpos());
+        Guild::SendCommandResult(this, GUILD_CREATE_S, ERR_GUILD_PLAYER_NOT_IN_GUILD);
+        return;
+    }
+    if (GetPlayer()->GetGuildId() != GUID_LOPART(guildId))
+    {
+        printf("CMSG_GUILD_RANK: This player is not in the guild.\n");
+        recvPacket.rpos(recvPacket.wpos());
+        Guild::SendCommandResult(this, GUILD_CREATE_S, ERR_GUILD_PLAYER_NOT_IN_GUILD);
+        return;
+    }
+
     Guild* pGuild = _GetPlayerGuild(this, true);
+
     if (!pGuild)
     {
         recvPacket.rpos(recvPacket.wpos());
         return;
     }
-
-    uint32 rankId;
-    recvPacket >> rankId;
-
-    uint32 rights;
-    recvPacket >> rights;
-
-    std::string rankName;
-    recvPacket >> rankName;
-
-    uint32 money;
-    recvPacket >> money;
-
+    
     GuildBankRightsAndSlotsVec rightsAndSlots(GUILD_BANK_MAX_TABS);
-    for (uint8 tabId = 0; tabId < GUILD_BANK_MAX_TABS; ++tabId)
+    if (old_rankId != GR_GUILDMASTER)
     {
-        uint32 bankRights;
-        uint32 slots;
+        for (uint8 tabId = 0; tabId < GUILD_BANK_MAX_TABS; ++tabId)
+        {
+            rightsAndSlots[tabId] = GuildBankRightsAndSlots(uint8(old_rights), new_rights);
+        }
 
-        recvPacket >> bankRights;
-        recvPacket >> slots;
+        pGuild->HandleSetRankInfo(this, new_rankId, rankName, new_rights, money, rightsAndSlots);
 
-        rightsAndSlots[tabId] = GuildBankRightsAndSlots(uint8(bankRights), slots);
     }
-
-    pGuild->HandleSetRankInfo(this, rankId, rankName, rights, money, rightsAndSlots);
+    if (old_rankId != new_rankId && old_rankId != GR_GUILDMASTER && new_rankId != GR_GUILDMASTER)
+    pGuild->SwitchRank(old_rankId, new_rankId);
 }
 
 void WorldSession::HandleGuildAddRankOpcode(WorldPacket& recvPacket)

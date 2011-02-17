@@ -344,6 +344,7 @@ bool fillArchiveNameVector(std::vector<std::string>& pArchiveNames)
 
     // open expansion and common files
 	pArchiveNames.push_back(input_path + string("World.MPQ")); 
+	pArchiveNames.push_back(input_path + string("Art.MPQ")); 
 	pArchiveNames.push_back(input_path + string("expansion1.MPQ")); 
 	pArchiveNames.push_back(input_path + string("expansion2.MPQ")); 
 	pArchiveNames.push_back(input_path + string("expansion3.MPQ")); 
@@ -353,6 +354,7 @@ bool fillArchiveNameVector(std::vector<std::string>& pArchiveNames)
 	//pArchiveNames.push_back(input_path + string("wow-update-13205.MPQ")); 
 	//pArchiveNames.push_back(input_path + string("wow-update-13287.MPQ")); 
 	//pArchiveNames.push_back(input_path + string("wow-update-13329.MPQ"));
+	//pArchiveNames.push_back(input_path + string("wow-update-13596.MPQ"));
 
     // now, scan for the patch levels in the core dir
     printf("Scanning patch levels from data directory.\n");

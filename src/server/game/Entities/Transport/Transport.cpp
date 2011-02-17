@@ -28,7 +28,7 @@
 #include "ScriptMgr.h"
 #include "WorldPacket.h"
 #include "DBCStores.h"
-#include "ProgressBar.h"
+
 #include "World.h"
 #include "GameObjectAI.h"
 
@@ -38,22 +38,21 @@ void MapManager::LoadTransports()
 
     uint32 count = 0;
 
-    //The client crash with transports. They are now not handled in SMSG_UPDATE_OBJECT. Temp hard fix.
-    if (true || !result)
+    if (!result)
     {
-        barGoLink bar(1);
-        bar.step();
+        
+        
 
         sLog.outString();
         sLog.outString(">> Loaded %u transports", count);
         return;
     }
 
-    barGoLink bar(result->GetRowCount());
+    
 
     do
     {
-        bar.step();
+        
 
         Field *fields = result->Fetch();
         uint32 lowguid = fields[0].GetUInt32();
@@ -147,19 +146,19 @@ void MapManager::LoadTransportNPCs()
 
     if (!result)
     {
-        barGoLink bar(1);
-        bar.step();
+        
+        
 
         sLog.outString();
         sLog.outString(">> Loaded %u transport NPCs.", count);
         return;
     }
 
-    barGoLink bar(result->GetRowCount());
+    
 
     do
     {
-        bar.step();
+        
         Field *fields = result->Fetch();
         uint32 guid = fields[0].GetUInt32();
         uint32 entry = fields[1].GetUInt32();

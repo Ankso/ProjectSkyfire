@@ -20,29 +20,13 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-#ifndef TRINITYCORE_PROGRESSBAR_H
-#define TRINITYCORE_PROGRESSBAR_H
+/* ScriptData
+SDName: Gilneas Quests
+SD%Complete: 0
+SDComment: 
+SDCategory: Gilneas
+EndScriptData */
 
-#include "Define.h"
-
-class barGoLink
-{
-public: // constructors
-	barGoLink(int row_count);
-	~barGoLink();
-
-public: // modifiers
-	void step( void );
-
-	static void SetOutputState(bool on) { m_showOutput = on; }
-private:
-	static bool m_showOutput; // not recommended change with existed active bar
-	static char const * const empty;
-	static char const * const full;
-
-	int rec_no;
-	int rec_pos;
-	int num_rec;
-	int indic_len;
-};
-#endif
+/* ContentData
+Null
+EndContentData */

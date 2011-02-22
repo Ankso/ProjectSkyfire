@@ -119,7 +119,8 @@ void WorldSession::SendAuctionOwnerNotification(AuctionEntry* auction)
 void WorldSession::HandleAuctionSellItem(WorldPacket & recv_data)
 {
     uint64 auctioneer, item;
-    uint32 etime, bid, buyout, count;
+    uint64 bid, buyout;
+	uint32 etime, count;
     recv_data >> auctioneer;
     recv_data.read_skip<uint32>();                          // const 1?
     recv_data >> item;

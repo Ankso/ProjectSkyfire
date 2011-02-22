@@ -516,6 +516,7 @@ Player::Player (WorldSession *session): Unit(), m_achievementMgr(this), m_reputa
 
     m_logintime = time(NULL);
     m_Last_tick = m_logintime;
+    m_Save_Time = m_logintime + 360;
     m_WeaponProficiency = 0;
     m_ArmorProficiency = 0;
     m_canParry = false;
@@ -1339,7 +1340,13 @@ void Player::Update(uint32 p_time)
     if (now > m_Last_tick)
         UpdateItemDuration(uint32(now - m_Last_tick));
 
-    // check every second	
+	if (now > m_Save_Time) 
+		{ 
+			SaveToDB(); 
+			m_Save_Time = now + 360; 
+		} 
+
+// check every second	
     if (now > m_Last_tick + 1)
         UpdateSoulboundTradeItems();
 
@@ -2069,9 +2076,21 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
 
                 data.Initialize(SMSG_NEW_WORLD, (20));
                 if (m_transport)
-                    data << m_movementInfo.t_pos.PositionXYZStream() << (uint32)mapid << (float)m_movementInfo.t_pos.m_orientation;
+                {
+                    data << uint32(mapid);
+                    data << float(m_movementInfo.t_pos.GetOrientation());
+                    data << float(m_movementInfo.t_pos.GetPositionX());
+                    data << float(m_movementInfo.t_pos.GetPositionY());
+                    data << float(m_movementInfo.t_pos.GetPositionZ());
+                }
                 else
-                    data << (float)x << (float)y << (float)z << (uint32)mapid << (float)orientation;
+                {
+                    data << uint32(mapid);
+                    data << float(orientation);
+                    data << float(x);
+                    data << float(y);
+                    data << float(z);
+                }
                 
                 GetSession()->SendPacket(&data);
                 SendSavedInstances();
@@ -9430,9 +9449,14 @@ uint32 Player::GetXPRestBonus(uint32 xp)
 
 void Player::SetBindPoint(uint64 guid)
 {
-    WorldPacket data(SMSG_BINDER_CONFIRM, 8);
-    data << uint64(guid);
-    GetSession()->SendPacket(&data);
+    //WorldPacket data(SMSG_BINDER_CONFIRM, 8);
+    //data << uint64(guid);
+    //GetSession()->SendPacket(&data);
+	float x = this->GetPositionX();
+	float y = this->GetPositionY();
+	float z = this->GetPositionZ();
+	uint32 spellid = 26;
+	this->CastSpell(x,y,z,spellid,true);
 }
 
 void Player::SendTalentWipeConfirm(uint64 guid)

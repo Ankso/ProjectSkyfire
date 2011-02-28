@@ -1724,7 +1724,7 @@ void WorldSession::SendSetPhaseShift(uint32 PhaseShift)
     SendPacket(&data);
 }
 
-void WorldSession::HandleHearthAndResurrect(WorldPacket& recv_data)
+void WorldSession::HandleHearthAndResurrect(WorldPacket& /*recv_data*/)
 {
     if (_player->isInFlight())
         return;
@@ -1737,3 +1737,4 @@ void WorldSession::HandleHearthAndResurrect(WorldPacket& recv_data)
     _player->ResurrectPlayer(100);
     _player->TeleportTo(_player->m_homebindMapId, _player->m_homebindX, _player->m_homebindY, _player->m_homebindZ, _player->GetOrientation());
 }
+

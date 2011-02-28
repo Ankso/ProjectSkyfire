@@ -8473,7 +8473,7 @@ void Player::RemovedInsignia(Player* looterPlr)
 
 void Player::SendLootRelease(uint64 guid)
 {
-    WorldPacket data(SMSG_LOOT_RELEASE_RESPONSE, (8+1));
+    WorldPacket data(SMSG_LOOT_RELEASE_RESPONSE, (9));
     data << uint64(guid) << uint8(1);
     SendDirectMessage(&data);
 }
@@ -8768,16 +8768,24 @@ void Player::SendLoot(uint64 guid, LootType loot_type)
     // LOOT_INSIGNIA and LOOT_FISHINGHOLE unsupported by client
     switch (loot_type)
     {
-        case LOOT_INSIGNIA:    loot_type = LOOT_SKINNING; break;
-        case LOOT_FISHINGHOLE: loot_type = LOOT_FISHING; break;
-        default: break;
+        case LOOT_INSIGNIA:
+			loot_type = LOOT_SKINNING;
+			break;
+        case LOOT_FISHINGHOLE:
+			loot_type = LOOT_FISHING;
+			break;
+        default:
+			break;
     }
 
     // need know merged fishing/corpse loot type for achievements
     loot->loot_type = loot_type;
+	
+    // Hack Fix
+	//WorldPacket data(SMSG_LOOT_RESPONSE, (9+50));           // we guess size
+	WorldPacket data(SMSG_MULTIPLE_PACKETS, (9+50+2));           // we guess size
 
-    WorldPacket data(SMSG_LOOT_RESPONSE, (9+50));           // we guess size
-
+	data << uint16(SMSG_LOOT_RESPONSE);
     data << uint64(guid);
     data << uint8(loot_type);
     data << LootView(*loot, this, permission);
@@ -8800,7 +8808,9 @@ void Player::SendNotifyLootMoneyRemoved()
 
 void Player::SendNotifyLootItemRemoved(uint8 lootSlot)
 {
-    WorldPacket data(SMSG_LOOT_REMOVED, 1);
+    WorldPacket data(SMSG_MULTIPLE_PACKETS, 1+2);
+	//WorldPacket data(SMSG_LOOT_REMOVED, 1);
+	data << uint16(SMSG_LOOT_REMOVED);
     data << uint8(lootSlot);
     GetSession()->SendPacket(&data);
 }
@@ -9449,14 +9459,14 @@ uint32 Player::GetXPRestBonus(uint32 xp)
 
 void Player::SetBindPoint(uint64 guid)
 {
-    //WorldPacket data(SMSG_BINDER_CONFIRM, 8);
-    //data << uint64(guid);
-    //GetSession()->SendPacket(&data);
-	float x = this->GetPositionX();
-	float y = this->GetPositionY();
-	float z = this->GetPositionZ();
-	uint32 spellid = 26;
-	this->CastSpell(x,y,z,spellid,true);
+    WorldPacket data(SMSG_BINDER_CONFIRM, 8);
+    data << uint64(guid);
+    GetSession()->SendPacket(&data);
+	//float x = this->GetPositionX();
+	//float y = this->GetPositionY();
+	//float z = this->GetPositionZ();
+	//uint32 spellid = 26;
+	//this->CastSpell(x,y,z,spellid,true);
 }
 
 void Player::SendTalentWipeConfirm(uint64 guid)

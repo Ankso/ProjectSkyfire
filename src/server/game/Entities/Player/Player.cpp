@@ -2972,6 +2972,7 @@ void Player::InitStatsForLevel(bool reapplyMods)
         SetUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS+i, 0);
         SetFloatValue(PLAYER_FIELD_MOD_DAMAGE_DONE_PCT+i, 1.00f);
     }
+    SetFloatValue(PLAYER_FIELD_MOD_SPELL_POWER_PCT, 1.0f);
 
     //reset attack power, damage and attack speed fields
     SetFloatValue(UNIT_FIELD_BASEATTACKTIME, 2000.0f);
@@ -8781,9 +8782,8 @@ void Player::SendLoot(uint64 guid, LootType loot_type)
     // need know merged fishing/corpse loot type for achievements
     loot->loot_type = loot_type;
 	
-    // Hack Fix
-	//WorldPacket data(SMSG_LOOT_RESPONSE, (9+50));           // we guess size
-	WorldPacket data(SMSG_MULTIPLE_PACKETS, (9+50+2));           // we guess size
+    
+	WorldPacket data(SMSG_MULTIPLE_PACKETS, (9 + 50 + 2));           // we guess size
 
 	data << uint16(SMSG_LOOT_RESPONSE);
     data << uint64(guid);

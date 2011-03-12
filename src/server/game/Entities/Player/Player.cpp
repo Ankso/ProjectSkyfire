@@ -5805,7 +5805,7 @@ void Player::SetRegularAttackTime()
     for (uint8 i = 0; i < MAX_ATTACK; ++i)
     {
         Item *tmpitem = GetWeaponForAttack(WeaponAttackType(i), true);
-        if (tmpitem && !tmpitem->IsBroken())
+        if (tmpitem && !tmpitem->IsBroken() && tmpitem->GetProto()->Block)
         {
             ItemPrototype const *proto = tmpitem->GetProto();
             if (proto->Delay)
@@ -9661,25 +9661,13 @@ uint8 Player::FindEquipSlot(ItemPrototype const* proto, uint32 slot, bool swap) 
         {
             switch(proto->SubClass)
             {
-                case ITEM_SUBCLASS_ARMOR_LIBRAM:
-                    if (pClass == CLASS_PALADIN)
-                        slots[0] = EQUIPMENT_SLOT_RANGED;
-                    break;
-                case ITEM_SUBCLASS_ARMOR_IDOL:
-                    if (pClass == CLASS_DRUID)
-                        slots[0] = EQUIPMENT_SLOT_RANGED;
-                    break;
-                case ITEM_SUBCLASS_ARMOR_TOTEM:
-                    if (pClass == CLASS_SHAMAN)
-                        slots[0] = EQUIPMENT_SLOT_RANGED;
-                    break;
                 case ITEM_SUBCLASS_ARMOR_MISC:
                     if (pClass == CLASS_WARLOCK)
                         slots[0] = EQUIPMENT_SLOT_RANGED;
                     break;
-                case ITEM_SUBCLASS_ARMOR_SIGIL:
-                    if (pClass == CLASS_DEATH_KNIGHT)
-                        slots[0] = EQUIPMENT_SLOT_RANGED;
+                case ITEM_SUBCLASS_ARMOR_L_I_T_S:
+                    if (pClass == CLASS_PALADIN || pClass == CLASS_DRUID || pClass == CLASS_SHAMAN || pClass == CLASS_DEATH_KNIGHT)
+                         slots[0] = EQUIPMENT_SLOT_RANGED;
                     break;
             }
             break;
@@ -21480,7 +21468,7 @@ void Player::SendInitialPacketsBeforeAddToMap()
 
     SendInitialActionButtons();
     m_reputationMgr.SendInitialReputations();
-    m_achievementMgr.SendAllAchievementData();
+    m_achievementMgr.SendAllAchievementData();  //marker1
 
     SendEquipmentSetList();
 

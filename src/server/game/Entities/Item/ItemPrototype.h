@@ -25,6 +25,7 @@
 
 #include "Common.h"
 #include "SharedDefines.h"
+#include "DBCStructure.h"
 
 enum ItemModType
 {
@@ -231,10 +232,12 @@ enum SocketColor
     SOCKET_COLOR_META                           = 1,
     SOCKET_COLOR_RED                            = 2,
     SOCKET_COLOR_YELLOW                         = 4,
-    SOCKET_COLOR_BLUE                           = 8
+    SOCKET_COLOR_BLUE                           = 8,
+    SOCKET_COLOR_HYDRAULIC                      = 16,
+    SOCKET_COLOR_COGWHEEL                       = 32,
 };
 
-#define SOCKET_COLOR_ALL (SOCKET_COLOR_META | SOCKET_COLOR_RED | SOCKET_COLOR_YELLOW | SOCKET_COLOR_BLUE)
+#define SOCKET_COLOR_ALL (SOCKET_COLOR_META | SOCKET_COLOR_RED | SOCKET_COLOR_YELLOW | SOCKET_COLOR_BLUE | SOCKET_COLOR_HYDRAULIC | SOCKET_COLOR_COGWHEEL)
 
 enum InventoryType
 {
@@ -382,13 +385,15 @@ enum ItemSubclassArmor
     ITEM_SUBCLASS_ARMOR_PLATE                   = 4,
     ITEM_SUBCLASS_ARMOR_BUCKLER                 = 5,
     ITEM_SUBCLASS_ARMOR_SHIELD                  = 6,
-    ITEM_SUBCLASS_ARMOR_LIBRAM                  = 7,
-    ITEM_SUBCLASS_ARMOR_IDOL                    = 8,
-    ITEM_SUBCLASS_ARMOR_TOTEM                   = 9,
-    ITEM_SUBCLASS_ARMOR_SIGIL                   = 10
+    //ITEM_SUBCLASS_ARMOR_LIBRAM                = 7, deprecated
+    //ITEM_SUBCLASS_ARMOR_IDOL                  = 8, deprecated
+    //ITEM_SUBCLASS_ARMOR_TOTEM                 = 9, deprecated
+    //ITEM_SUBCLASS_ARMOR_SIGIL                 = 10 deprecated
+    ITEM_SUBCLASS_ARMOR_L_I_T_S                 = 11
 };
+ 
+#define MAX_ITEM_SUBCLASS_ARMOR                   12
 
-#define MAX_ITEM_SUBCLASS_ARMOR                   11
 
 enum ItemSubclassReagent
 {
@@ -475,10 +480,12 @@ enum ItemSubclassQuiver
 enum ItemSubclassQuest
 {
     ITEM_SUBCLASS_QUEST                         = 0,
-    ITEM_SUBCLASS_QUEST_2                       = 1
+    ITEM_SUBCLASS_QUEST_2                       = 1,
+    ITEM_SUBCLASS_QUEST_3                       = 3,
+    ITEM_SUBCLASS_QUEST_8                       = 8
 };
 
-#define MAX_ITEM_SUBCLASS_QUEST                   2
+#define MAX_ITEM_SUBCLASS_QUEST                   9
 
 enum ItemSubclassKey
 {
@@ -591,7 +598,7 @@ struct _Socket
     uint32 Content;
 };
 
-#define MAX_ITEM_PROTO_DAMAGES 2                            // changed in 3.1.0
+#define MAX_ITEM_PROTO_DAMAGES 2
 #define MAX_ITEM_PROTO_SOCKETS 3
 #define MAX_ITEM_PROTO_SPELLS  5
 #define MAX_ITEM_PROTO_STATS  10
@@ -644,7 +651,7 @@ struct ItemPrototype
     int32  RandomProperty;                                  // id from ItemRandomProperties.dbc
     int32  RandomSuffix;                                    // id from ItemRandomSuffix.dbc
     uint32 Block;
-    uint32 ItemSet;                                         // id from ItemSet.dbc
+	uint32 ItemSet;                                         // id from ItemSet.dbc
     uint32 MaxDurability;
     uint32 Area;                                            // id from AreaTable.dbc
     uint32 Map;                                             // id from Map.dbc

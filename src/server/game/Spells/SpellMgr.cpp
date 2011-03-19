@@ -110,6 +110,7 @@ SpellMgr::SpellMgr()
         {
             case TARGET_UNIT_CASTER:
             case TARGET_UNIT_CASTER_FISHING:
+            case TARGET_UNIT_CASTER_UNKNOWN:
             case TARGET_UNIT_MASTER:
             case TARGET_UNIT_PET:
             case TARGET_UNIT_PARTY_CASTER:
@@ -3419,7 +3420,7 @@ void SpellMgr::LoadSpellRequired()
     sLog.outString(">> Loaded %u spell required records", rows);
 }
 
-void SpellMgr::LoadSpellRanks()
+/*void SpellMgr::LoadSpellRanks()
 {
     mSpellChains.clear();                                   // need for reload case
 
@@ -3532,7 +3533,7 @@ void SpellMgr::LoadSpellRanks()
     sLog.outString();
     sLog.outString(">> Loaded %u spell rank records", rows);
 }
-
+*/
 // set data in core for now
 void SpellMgr::LoadSpellCustomAttr()
 {

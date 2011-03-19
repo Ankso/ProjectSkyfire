@@ -498,6 +498,13 @@ void WorldSession::KickPlayer()
         m_Socket->CloseSocket ();
 }
 
+void WorldSession::HandleMoveToGraveyard(WorldPacket &recv_data)
+{
+    if (_player->isAlive() || !_player->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_GHOST))
+        return;
+    _player->RepopAtGraveyard();
+}
+
 void WorldSession::SendNotification(const char *format,...)
 {
     if (format)
@@ -781,7 +788,7 @@ void WorldSession::WriteMovementInfo(WorldPacket *data, MovementInfo *mi)
        *data << mi->t_seat;
 
         if (mi->flags2 & MOVEMENTFLAG2_INTERPOLATED_MOVEMENT)
-            *data >> mi->t_time2;
+            *data << mi->t_time2;
     }
 
     if ((mi->HasMovementFlag(MovementFlags(MOVEMENTFLAG_SWIMMING | MOVEMENTFLAG_FLYING))) || (mi->flags2 & MOVEMENTFLAG2_ALWAYS_ALLOW_PITCHING))

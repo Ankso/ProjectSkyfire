@@ -929,7 +929,7 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     result =
         LoginDatabase.PQuery ("SELECT "
                               "gmlevel "             //0
-                              "FROM account"
+                              "FROM account "
                               "WHERE id = '%d'",
                               id);
     if (!result)

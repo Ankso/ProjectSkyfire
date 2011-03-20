@@ -522,7 +522,7 @@ enum Opcodes
     SMSG_LFG_PLAYER_REWARD                           = 0x02C88, // 4.0.6a 13623
     SMSG_LFG_TELEPORT_DENIED                         = 0x0EAA0, // 4.0.6a 13623
     CMSG_UNLEARN_SPELL                               = 0x10090, //
-    CMSG_UNLEARN_SKILL                               = 0x0175F, //
+    CMSG_UNLEARN_SKILL                               = 0x063C8, // 4.0.6a 13623
     SMSG_REMOVED_SPELL                               = 0x07CA0, // 4.0.6a 13623
     CMSG_DECHARGE                                    = 0x10092, //
     CMSG_GMTICKET_CREATE                             = 0x06380, // 4.0.6a 13623
@@ -923,7 +923,7 @@ enum Opcodes
     CMSG_CHEAT_DUMP_ITEMS_DEBUG_ONLY                 = 0x1015F, //
     SMSG_CHEAT_DUMP_ITEMS_DEBUG_ONLY_RESPONSE        = 0x10160, //
     SMSG_CHEAT_DUMP_ITEMS_DEBUG_ONLY_RESPONSE_WRITE_FILE  = 0x10161, //
-    SMSG_UPDATE_COMBO_POINTS                         = 0x10162, //
+    SMSG_UPDATE_COMBO_POINTS                         = 0x037A8, // 4.0.6a 13623
     SMSG_VOICE_SESSION_ROSTER_UPDATE                 = 0x0ACC0, // 4.0.6a 13623
     SMSG_VOICE_SESSION_LEAVE                         = 0x078A4, // 4.0.6a 13623
     SMSG_VOICE_SESSION_ADJUST_PRIORITY               = 0x10165, //

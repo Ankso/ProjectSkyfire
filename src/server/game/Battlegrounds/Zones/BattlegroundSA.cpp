@@ -20,6 +20,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+#include "gamePCH.h"
 #include "Battleground.h"
 #include "BattlegroundSA.h"
 #include "Language.h"
@@ -27,7 +28,6 @@
 #include "GameObject.h"
 #include "ObjectMgr.h"
 #include "WorldPacket.h"
-
 
 BattlegroundSA::BattlegroundSA()
 {
@@ -73,7 +73,6 @@ bool BattlegroundSA::ResetObjs()
 
     uint32 atF = BG_SA_Factions[Attackers];
     uint32 defF = BG_SA_Factions[Attackers ? TEAM_ALLIANCE : TEAM_HORDE];
-
 
     for (uint8 i = 0; i <BG_SA_MAXOBJ; i++)
         DelObject(i);
@@ -274,7 +273,6 @@ void BattlegroundSA::StartShips()
             if (Player* p = sObjectMgr.GetPlayer(itr->first))
             {
                 UpdateData data;
-                data.m_map = uint16(p->GetMapId());
                 WorldPacket pkt;
                 GetBGObject(i)->BuildValuesUpdateBlockForPlayer(&data, p);
                 data.BuildPacket(&pkt);

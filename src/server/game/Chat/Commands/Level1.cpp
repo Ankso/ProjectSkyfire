@@ -20,6 +20,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+#include "gamePCH.h"
 #include "Common.h"
 #include "DatabaseEnv.h"
 #include "WorldPacket.h"
@@ -61,6 +62,61 @@ bool ChatHandler::HandleOpcodeTestCommand(const char* args)
         
     std::string command;
     arg >> command;
+
+    if (command == "roster")
+    {
+        WorldPacket data(SMSG_GUILD_EVENT, 10);
+        int ev;
+        arg >> ev;
+        data << uint8(ev);
+        data << uint8(0);
+
+        /*if (param3)
+            data << param1 << param2 << param3;
+        else if (param2)
+            data << param1 << param2;
+        else if (param1)
+            data << param1;
+
+        if (guid)
+            data << uint64(guid);*/
+        m_session->SendPacket(&data);
+        PSendSysMessage("Sending GUILD EVENT %u", ev);
+        return true;
+    }
+
+    if (command == "aura")
+    {
+        int id;
+        arg >> id;
+
+        WorldPacket data(SMSG_AURA_UPDATE, 100);
+        data.append(m_session->GetPlayer()->GetPackGUID());
+        uint8 slot;
+        Unit::VisibleAuraMap const * visibleAuras = m_session->GetPlayer()->GetVisibleAuras();
+        // lookup for free slots in units visibleAuras
+        Unit::VisibleAuraMap::const_iterator itr = visibleAuras->find(0);
+        for (uint32 freeSlot = 0; freeSlot < MAX_AURAS; ++itr , ++freeSlot)
+        {
+                if (itr == visibleAuras->end() || itr->first != freeSlot)
+                {
+                    slot = freeSlot;
+                    break;
+                }
+            }
+        data << uint8(slot); // slot
+
+        data << uint32(id);
+        data << uint8(16); // flags
+        data << uint8(85); // caster lvl
+        data << uint8(1); // stack charges
+
+        data.appendPackGUID(m_session->GetPlayer()->GetGUID());
+
+        m_session->SendPacket(&data);
+        PSendSysMessage("Sent");
+        return true;
+    }
     
     if (command == "reset")
     {
@@ -1278,8 +1334,8 @@ bool ChatHandler::HandleModifyASpeedCommand(const char* args)
         chr->SetSpeed(MOVE_SWIM,    ASpeed,true);
         //chr->SetSpeed(MOVE_TURN,    ASpeed,true);
         chr->SetSpeed(MOVE_FLIGHT,     ASpeed,true);
-	}
-	return true;
+    }
+    return true;
 }
 
 //Edit Player Speed
@@ -1867,7 +1923,7 @@ bool ChatHandler::HandleModifyBitCommand(const char* args)
     return true;
 }
 
-bool ChatHandler::HandleModifyHonorCommand (const char* args)
+bool ChatHandler::HandleModifyCurrencyCommand (const char* args)
 {
     if (!*args)
         return false;
@@ -1881,16 +1937,27 @@ bool ChatHandler::HandleModifyHonorCommand (const char* args)
     }
 
     // check online security
-    if (HasLowerSecurity(target, 0))
-        return false;
+        if (HasLowerSecurity(target, 0))
+            return false;
 
-    int32 amount = (uint32)atoi(args);
+		char* currencyid_s = strtok((char*)args, " ");
+		char* amount_s = strtok(NULL, "");
+		if (!currencyid_s || !amount_s)
+			return false;
 
-    target->ModifyHonorPoints(amount);
+		int32 currencyid = (int32)atoi(currencyid_s);
+		int32 amount = (int32)atoi(amount_s);
+		if (!sCurrencyTypesStore.LookupEntry(uint32(currencyid)))
+		{
+			PSendSysMessage("Currency %u does not exist.", currencyid);
+			SetSentErrorMessage(true);
+			return false;
+        }  
 
-    PSendSysMessage(LANG_COMMAND_MODIFY_HONOR, GetNameLink(target).c_str(), target->GetHonorPoints());
+        target->ModifyCurrency(uint32(currencyid), amount);
 
-    return true;
+        PSendSysMessage(LANG_COMMAND_MODIFY_HONOR, GetNameLink(target).c_str(), target->GetCurrency(uint32(currencyid)));
+        return true;
 }
 
 bool ChatHandler::HandleTeleCommand(const char * args)

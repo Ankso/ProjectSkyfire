@@ -525,8 +525,8 @@ enum CombatRating
     CR_HIT_TAKEN_MELEE          = 11,
     CR_HIT_TAKEN_RANGED         = 12,
     CR_HIT_TAKEN_SPELL          = 13,
-    CR_CRIT_TAKEN_MELEE         = 14,                     // COMBAT_RATING_RESILIENCE_CRIT_TAKEN
-    CR_CRIT_TAKEN_RANGED        = 15,                     // COMBAT_RATING_RESILIENCE_PLAYER_DAMAGE_TAKEN
+    CR_RESILIENCE_CRIT_TAKEN    = 14,
+    CR_RESILIENCE_PLAYER_DAMAGE_TAKEN = 15,
     CR_CRIT_TAKEN_SPELL         = 16,
     CR_HASTE_MELEE              = 17,
     CR_HASTE_RANGED             = 18,
@@ -842,7 +842,7 @@ private:
     uint32 m_block;
 public:
     explicit DamageInfo(Unit * _attacker, Unit * _victim, uint32 _damage, SpellEntry const * _spellInfo, SpellSchoolMask _schoolMask, DamageEffectType _damageType)
-        : m_attacker(_attacker), m_victim(_victim), m_damage(_damage), m_spellInfo(_spellInfo), m_schoolMask(_schoolMask), m_damageType(_damageType)
+        : m_attacker(_attacker), m_victim(_victim), m_damageType(_damageType), m_spellInfo(_spellInfo), m_schoolMask(_schoolMask), m_damage(_damage)
     {
         m_absorb = 0;
         m_resist = 0;
@@ -1049,7 +1049,7 @@ struct CharmInfo
     public:
         explicit CharmInfo(Unit* unit);
         ~CharmInfo();
-		void RestoreState();
+        void RestoreState();
         uint32 GetPetNumber() const { return m_petnumber; }
         void SetPetNumber(uint32 petnumber, bool statwindow);
 
@@ -1234,6 +1234,8 @@ class Unit : public WorldObject
         void SendMeleeAttackStop(Unit* victim);
         void SendMeleeAttackStart(Unit* pVictim);
 
+        bool IsVisionObscured(Unit* pVictim);
+
         void addUnitState(uint32 f) { m_state |= f; }
         bool hasUnitState(const uint32 f) const { return (m_state & f); }
         void clearUnitState(uint32 f) { m_state &= ~f; }
@@ -1376,11 +1378,9 @@ class Unit : public WorldObject
         void DealSpellDamage(SpellNonMeleeDamage *damageInfo, bool durabilityLoss);
 
         // player or player's pet resilience (-1%), cap 100%
-        uint32 GetMeleeDamageReduction(uint32 damage) const { return GetCombatRatingDamageReduction(CR_CRIT_TAKEN_MELEE, 2.0f, 100.0f, damage); }
-        uint32 GetRangedDamageReduction(uint32 damage) const { return GetCombatRatingDamageReduction(CR_CRIT_TAKEN_RANGED, 2.0f, 100.0f, damage); }
-        uint32 GetSpellDamageReduction(uint32 damage) const { return GetCombatRatingDamageReduction(CR_CRIT_TAKEN_SPELL, 2.0f, 100.0f, damage); }
+        uint32 GetPlayerDamageReduction(uint32 damage) const { return GetCombatRatingDamageReduction(CR_RESILIENCE_PLAYER_DAMAGE_TAKEN, 1.0f, 100.0f, damage); }
 
-        void ApplyResilience(const Unit * pVictim, int32 * damage, CombatRating type) const;
+        void ApplyResilience(const Unit * pVictim, int32 * damage) const;
 
         float MeleeSpellMissChance(const Unit *pVictim, WeaponAttackType attType, int32 skillDiff, uint32 spellId) const;
         SpellMissInfo MeleeSpellHitResult(Unit *pVictim, SpellEntry const *spell);
@@ -1571,7 +1571,7 @@ class Unit : public WorldObject
         Player* GetCharmerOrOwnerPlayerOrPlayerItself() const;
 
         void SetMinion(Minion *minion, bool apply, PetSlot slot);
-        void GetAllMinionsByEntry(std::list<Creature*>& Minions, uint32 entry);
+        void GetAllMinionsByEntry(std::list<Unit*>& Minions, uint32 entry);
         void RemoveAllMinionsByEntry(uint32 entry);
         void SetCharm(Unit* target, bool apply);
         Unit* GetNextRandomRaidMemberOrPet(float radius);
@@ -1884,7 +1884,7 @@ class Unit : public WorldObject
         // DynamicObject management
         void _RegisterDynObject(DynamicObject* dynObj);
         void _UnregisterDynObject(DynamicObject* dynObj);
-		DynamicObject* GetDynObject(uint32 spellId);
+        DynamicObject* GetDynObject(uint32 spellId);
         void RemoveDynObject(uint32 spellId);
         void RemoveAllDynObjects();
 
@@ -1945,6 +1945,7 @@ class Unit : public WorldObject
 
         void SetHover(bool on);
         bool isHover() const { return HasAuraType(SPELL_AURA_HOVER); }
+        bool isCamouflaged() const { return HasAuraType(SPELL_AURA_MOD_CAMOUFLAGE); }
 
         int32 ApplyEffectModifiers(SpellEntry const* spellProto, uint8 effect_index, int32 value) const;
         int32 CalculateSpellDamage(Unit const* target, SpellEntry const* spellProto, uint8 effect_index, int32 const* basePoints = NULL) const;
@@ -2139,10 +2140,10 @@ class Unit : public WorldObject
     private:
         bool IsTriggeredAtSpellProcEvent(Unit *pVictim, Aura * aura, SpellEntry const * procSpell, uint32 procFlag, uint32 procExtra, WeaponAttackType attType, bool isVictim, bool active, SpellProcEventEntry const *& spellProcEvent);
         bool HandleDummyAuraProc(Unit *pVictim, uint32 damage, AuraEffect* triggeredByAura, SpellEntry const *procSpell, uint32 procFlag, uint32 procEx, uint32 cooldown);
-        bool HandleHasteAuraProc(Unit *pVictim, uint32 damage, AuraEffect* triggeredByAura, SpellEntry const *procSpell, uint32 procFlag, uint32 procEx, uint32 cooldown);
+        bool HandleModDamagePctTakenAuraProc(Unit *pVictim, uint32 damage, AuraEffect* triggeredByAura, SpellEntry const *procSpell, uint32 procFlag, uint32 procEx, uint32 cooldown);
         bool HandleSpellCritChanceAuraProc(Unit *pVictim, uint32 damage, AuraEffect* triggredByAura, SpellEntry const *procSpell, uint32 procFlag, uint32 procEx, uint32 cooldown);
         bool HandleObsModEnergyAuraProc(Unit *pVictim, uint32 damage, AuraEffect* triggeredByAura, SpellEntry const *procSpell, uint32 procFlag, uint32 procEx, uint32 cooldown);
-        bool HandleModDamagePctTakenAuraProc(Unit *pVictim, uint32 damage, AuraEffect* triggeredByAura, SpellEntry const *procSpell, uint32 procFlag, uint32 procEx, uint32 cooldown);
+        bool HandleModPowerRegenAuraProc(Unit *pVictim, uint32 damage, AuraEffect* triggeredByAura, SpellEntry const *procSpell, uint32 procFlag, uint32 procEx, uint32 cooldown);
         bool HandleAuraProc(Unit *pVictim, uint32 damage, Aura* triggeredByAura, SpellEntry const * procSpell, uint32 procFlag, uint32 procEx, uint32 cooldown, bool * handled);
         bool HandleProcTriggerSpell(Unit *pVictim, uint32 damage, AuraEffect* triggeredByAura, SpellEntry const *procSpell, uint32 procFlag, uint32 procEx, uint32 cooldown);
         bool HandleOverrideClassScriptAuraProc(Unit *pVictim, uint32 damage, AuraEffect* triggeredByAura, SpellEntry const *procSpell, uint32 cooldown);

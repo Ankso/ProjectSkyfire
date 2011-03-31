@@ -783,18 +783,18 @@ ChatLogTimestamp = 0
 #
 #    MaxHonorPoints
 #        Max honor points that player can have.
-#        Default: 75000
+#        Default: 4000
 #
 #    StartHonorPoints
 #        Amount of honor that new players will start with
 #        Default: 0
 #
-#    MaxArenaPoints
-#        Max arena points that player can have.
-#        Default: 10000
+#    MaxJusticePoints
+#        Max justice points that player can have.
+#        Default: 4000
 #
-#    StartArenaPoints
-#        Amount of arena points that new players will start with
+#    StartJusticePoints
+#        Amount of fustice points that new players will start with
 #        Default: 0
 #
 #    RecruitAFriend.MaxLevel
@@ -828,9 +828,8 @@ ChatLogTimestamp = 0
 #        Default: 0 (false)
 #                 1 (true)
 #
-#    AlwaysMaxSkillForLevel
-#        Players will automatically gain max level dependent (weapon/defense)
-#         skill when logging in, leveling up etc.
+#    OldSkillSystem
+#        Players will have to gain on-level skills manually. (weapon, defense)
 #        Default: 0 (false)
 #                 1 (true)
 #
@@ -966,6 +965,17 @@ ChatLogTimestamp = 0
 #        The maximum number of results a .lookup command can return
 #        Default: 0 - unlimited
 #
+#    GuildAdvancement.Enabled
+#        Enables the cataclysm guild leveling system. 
+#        It's currently far from being complete. 
+#        Use on your own risk!
+#        Default: 0 - disabled
+#        
+#    GuildAdvancement.MaxLevel
+#        Max level a guild can reach. 
+#        Only has effect if Guild Advancement is enabled/
+#        Default: 25
+#
 ###############################################################################
 
 GameType = 0
@@ -993,17 +1003,17 @@ MinDualSpecLevel = 30
 StartPlayerLevel = 1
 StartHeroicPlayerLevel = 55
 StartPlayerMoney = 0
-MaxHonorPoints = 75000
+MaxHonorPoints = 4000
 StartHonorPoints = 0
-MaxArenaPoints = 10000
-StartArenaPoints = 0
+MaxJusticePoints = 4000
+StartJusticePoints = 0
 RecruitAFriend.MaxLevel = 60
 RecruitAFriend.MaxDifference = 3
 InstantLogout = 1
 DisableWaterBreath = 4
 AllFlightPaths = 0
 InstantFlightPaths = 1
-AlwaysMaxSkillForLevel = 0
+OldSkillSystem = 0
 ActivateWeather = 1
 CastUnstuck = 1
 Instance.IgnoreLevel = 0
@@ -1029,6 +1039,8 @@ BeepAtStart = 1
 Motd = "Welcome to a SkyFire server."
 Server.LoginInfo = 0
 Command.LookupMaxResults = 0
+GuildAdvancement.Enabled = 0
+GuildAdvancement.MaxLevel = 25
 
 ###############################################################################
 # PLAYER INTERACTION

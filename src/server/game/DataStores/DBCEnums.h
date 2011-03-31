@@ -62,7 +62,7 @@ enum AchievementFaction
 enum AchievementFlags
 {
     ACHIEVEMENT_FLAG_COUNTER           = 0x00000001,        // Just count statistic (never stop and complete)
-    ACHIEVEMENT_FLAG_TRACKING          = 0x00000002,        // Not sent to client - internal use only
+    ACHIEVEMENT_FLAG_HIDDEN            = 0x00000002,        // Not sent to client - internal use only
     ACHIEVEMENT_FLAG_STORE_MAX_VALUE   = 0x00000004,        // Store only max value? used only in "Reach level xx"
     ACHIEVEMENT_FLAG_SUMM              = 0x00000008,        // Use summ criteria value from all reqirements (and calculate max value)
     ACHIEVEMENT_FLAG_MAX_USED          = 0x00000010,        // Show max criteria (and calculate max value ??)
@@ -215,7 +215,7 @@ enum AchievementCriteriaTypes
     // TODO: target entry is missing
     ACHIEVEMENT_CRITERIA_TYPE_CAST_SPELL2 = 110,
     ACHIEVEMENT_CRITERIA_TYPE_LEARN_SKILL_LINE= 112,
-    //ACHIEVEMENT_CRITERIA_TYPE_EARN_HONORABLE_KILL = 113,
+    ACHIEVEMENT_CRITERIA_TYPE_EARN_HONORABLE_KILL = 113,
     ACHIEVEMENT_CRITERIA_TYPE_ACCEPTED_SUMMONINGS = 114,
     // 0..115 => 116 criteria types total
     ACHIEVEMENT_CRITERIA_TYPE_EARN_ACHIEVEMENT_POINTS = 115,
@@ -437,6 +437,14 @@ enum SummonPropFlags
     SUMMON_PROP_FLAG_UNK12           = 0x0800,              // 30 spells in 3.0.3, no idea
     SUMMON_PROP_FLAG_UNK13           = 0x1000,              // 8 spells in 3.0.3, siege vehicle
     SUMMON_PROP_FLAG_UNK14           = 0x2000,              // 2 spells in 3.0.3, escort?
+};
+
+enum CurrencyTypes
+{
+	CURRENCY_TYPE_CONQUEST_POINTS                = 390,
+    CURRENCY_TYPE_HONOR_POINTS                   = 392,
+    CURRENCY_TYPE_JUSTICE_POINTS                 = 395,
+    CURRENCY_TYPE_VALOR_POINTS                   = 396,
 };
 
 #endif

@@ -20,6 +20,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+#include "gamePCH.h"
 #include "Common.h"
 #include "ObjectAccessor.h"
 #include "ObjectMgr.h"
@@ -171,6 +172,10 @@ bool LoginQueryHolder::Initialize()
     stmt->setUInt32(0, lowGuid);
     res &= SetPreparedQuery(PLAYER_LOGIN_QUERY_LOADTALENTBRANCHSPECS, stmt);
               
+    stmt = CharacterDatabase.GetPreparedStatement(CHAR_LOAD_PLAYER_CURRENCY);
+    stmt->setUInt32(0, lowGuid);
+    res &= SetPreparedQuery(PLAYER_LOGIN_QUERY_LOAD_CURRENCY, stmt);
+
     stmt = CharacterDatabase.GetPreparedStatement(CHAR_LOAD_PLAYER_TALENTS);
     stmt->setUInt32(0, lowGuid);
     res &= SetPreparedQuery(PLAYER_LOGIN_QUERY_LOADTALENTS, stmt);
@@ -815,7 +820,20 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder * holder)
     if (pCurrChar->GetGuildId() != 0)
     {
         if (Guild* pGuild = sObjectMgr.GetGuildById(pCurrChar->GetGuildId()))
+        {
             pGuild->SendLoginInfo(this);
+            pCurrChar->SetUInt32Value(PLAYER_GUILDLEVEL, uint32(pGuild->GetLevel()));
+            
+            if(sWorld.getBoolConfig(CONFIG_GUILD_ADVANCEMENT_ENABLED))
+            {
+                pCurrChar->SetFlag(PLAYER_FLAGS, PLAYER_FLAGS_GLEVEL_ENABLED);
+
+                /// Learn perks to him
+                for(int i = 0; i < pGuild->GetLevel()-1; ++i)
+                    if(const GuildPerksEntry* perk = sGuildPerksStore.LookupEntry(i))
+                        pCurrChar->learnSpell(perk->SpellId, true);
+            }
+        }
         else
         {
             // remove wrong guild data

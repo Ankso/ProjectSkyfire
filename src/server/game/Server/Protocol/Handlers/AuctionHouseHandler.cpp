@@ -20,6 +20,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+#include "gamePCH.h"
 #include "ObjectMgr.h"
 #include "Player.h"
 #include "World.h"
@@ -120,7 +121,7 @@ void WorldSession::HandleAuctionSellItem(WorldPacket & recv_data)
 {
     uint64 auctioneer, item;
     uint64 bid, buyout;
-	uint32 etime, count;
+    uint32 etime, count;
     recv_data >> auctioneer;
     recv_data.read_skip<uint32>();                          // const 1?
     recv_data >> item;
@@ -240,7 +241,7 @@ void WorldSession::HandleAuctionSellItem(WorldPacket & recv_data)
     AH->deposit = deposit;
     AH->auctionHouseEntry = auctionHouseEntry;
 
-    sLog.outDetail("selling item %u to auctioneer %u with initial bid %u with buyout %u and with time %u (in sec) in auctionhouse %u", GUID_LOPART(item), AH->auctioneer, bid, buyout, auction_time, AH->GetHouseId());
+    sLog.outDetail("selling item %u to auctioneer %u with initial bid %u with buyout %u and with time "UI64FMTD" (in sec) in auctionhouse %u", GUID_LOPART(item), AH->auctioneer, bid, buyout, auction_time, AH->GetHouseId());
     sAuctionMgr.AddAItem(it);
     auctionHouse->AddAuction(AH);
 
@@ -263,7 +264,7 @@ void WorldSession::HandleAuctionPlaceBid(WorldPacket & recv_data)
 {
     uint64 auctioneer;
     uint32 auctionId;
-    uint32 price;
+    uint64 price;
     recv_data >> auctioneer;
     recv_data >> auctionId >> price;
 
@@ -314,7 +315,7 @@ void WorldSession::HandleAuctionPlaceBid(WorldPacket & recv_data)
         return;
     }
 
-    if (!pl->HasEnoughMoney(price))
+    if (!pl->HasEnoughMoney(uint32(price)))
     {
         //you don't have enought money!, client tests!
         //SendAuctionCommandResult(auction->auctionId, AUCTION_PLACE_BID, ???);

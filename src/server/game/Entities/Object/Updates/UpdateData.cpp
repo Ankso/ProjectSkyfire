@@ -20,6 +20,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+#include "gamePCH.h"
 #include "Common.h"
 #include "ByteBuffer.h"
 #include "WorldPacket.h"
@@ -29,7 +30,7 @@
 #include "World.h"
 #include "zlib.h"
 
-UpdateData::UpdateData() : m_blockCount(0), m_map(0)
+UpdateData::UpdateData() : m_map(0), m_blockCount(0)
 {
 }
 

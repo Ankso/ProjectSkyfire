@@ -20,6 +20,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+#include "gamePCH.h"
 #include <ace/Message_Block.h>
 #include <ace/OS_NS_string.h>
 #include <ace/OS_NS_unistd.h>
@@ -274,7 +275,7 @@ int WorldSocket::open (void *a)
 
     // Send startup packet.
     WorldPacket packet (SMSG_AUTH_CHALLENGE, 37);
-	
+    
     BigNumber seed1;
     seed1.SetRand(16 * 8);
     packet.append(seed1.AsByteArray(16), 16);               // new encryption seeds
@@ -283,7 +284,7 @@ int WorldSocket::open (void *a)
     packet << uint32(m_Seed);
 
     BigNumber seed2;
-	seed2.SetRand(16 * 8);
+    seed2.SetRand(16 * 8);
     packet.append(seed2.AsByteArray(16), 16);               // new encryption seeds
     
     if (SendPacket(packet) == -1)
@@ -780,7 +781,7 @@ int WorldSocket::ProcessIncoming (WorldPacket* new_pct)
 int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
 {
     uint8 digest[20];
-	uint16 clientBuild, id, security;
+    uint16 clientBuild, id, security;
     uint32 m_addonSize;
     //uint32 m_addonLenCompressed;
     //uint8* m_addonCompressed;
@@ -1018,7 +1019,7 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
 
     m_Session->LoadGlobalAccountData();
     m_Session->LoadTutorialsData();
-	packetAddon.rpos(0);
+    packetAddon.rpos(0);
     m_Session->ReadAddonsInfo(packetAddon);
     
     // Sleep this Network thread for
@@ -1032,12 +1033,12 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
 
 int WorldSocket::HandlePing (WorldPacket& recvPacket)
 {
-    uint32 ping;
+    uint32 sequence;
     uint32 latency;
 
     // Get the ping packet content
-    recvPacket >> ping;
     recvPacket >> latency;
+    recvPacket >> sequence;
 
     if (m_LastPingTime == ACE_Time_Value::zero)
         m_LastPingTime = ACE_OS::gettimeofday(); // for 1st ping
@@ -1089,6 +1090,6 @@ int WorldSocket::HandlePing (WorldPacket& recvPacket)
     }
 
     WorldPacket packet (SMSG_PONG, 4);
-    packet << ping;
+    packet << sequence;
     return SendPacket (packet);
 }

@@ -20,6 +20,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+#include "gamePCH.h"
 #include "Common.h"
 #include "ObjectAccessor.h"
 #include "ObjectMgr.h"
@@ -171,6 +172,10 @@ bool LoginQueryHolder::Initialize()
     stmt->setUInt32(0, lowGuid);
     res &= SetPreparedQuery(PLAYER_LOGIN_QUERY_LOADTALENTBRANCHSPECS, stmt);
               
+    stmt = CharacterDatabase.GetPreparedStatement(CHAR_LOAD_PLAYER_CURRENCY);
+    stmt->setUInt32(0, lowGuid);
+    res &= SetPreparedQuery(PLAYER_LOGIN_QUERY_LOAD_CURRENCY, stmt);
+
     stmt = CharacterDatabase.GetPreparedStatement(CHAR_LOAD_PLAYER_TALENTS);
     stmt->setUInt32(0, lowGuid);
     res &= SetPreparedQuery(PLAYER_LOGIN_QUERY_LOADTALENTS, stmt);
@@ -792,11 +797,13 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder * holder)
         SendPacket(&data);
         sLog.outStaticDebug("WORLD: Sent motd (SMSG_MOTD)");
 
-        // send server info
-        if (sWorld.getIntConfig(CONFIG_ENABLE_SINFO_LOGIN) == 1)
-            chH.PSendSysMessage(_FULLVERSION);
-
-        sLog.outStaticDebug("WORLD: Sent server info");
+        uint32 PlayersNum = sWorld.GetPlayerCount();
+        uint32 MaxPlayersNum = sWorld.GetMaxPlayerCount();
+        std::string uptime = secsToTimeString(sWorld.GetUptime());
+        
+        chH.PSendSysMessage(_FULLVERSION);
+        chH.PSendSysMessage(LANG_CONNECTED_PLAYERS, PlayersNum, MaxPlayersNum);
+        chH.PSendSysMessage(LANG_UPTIME, uptime.c_str());
     }
 
     //QueryResult *result = CharacterDatabase.PQuery("SELECT guildid,rank FROM guild_member WHERE guid = '%u'",pCurrChar->GetGUIDLow());
@@ -815,7 +822,20 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder * holder)
     if (pCurrChar->GetGuildId() != 0)
     {
         if (Guild* pGuild = sObjectMgr.GetGuildById(pCurrChar->GetGuildId()))
+        {
             pGuild->SendLoginInfo(this);
+            pCurrChar->SetUInt32Value(PLAYER_GUILDLEVEL, uint32(pGuild->GetLevel()));
+            
+            if(sWorld.getBoolConfig(CONFIG_GUILD_ADVANCEMENT_ENABLED))
+            {
+                pCurrChar->SetFlag(PLAYER_FLAGS, PLAYER_FLAGS_GLEVEL_ENABLED);
+
+                /// Learn perks to him
+                for(int i = 0; i < pGuild->GetLevel()-1; ++i)
+                    if(const GuildPerksEntry* perk = sGuildPerksStore.LookupEntry(i))
+                        pCurrChar->learnSpell(perk->SpellId, true);
+            }
+        }
         else
         {
             // remove wrong guild data

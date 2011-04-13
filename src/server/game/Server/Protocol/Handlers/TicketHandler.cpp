@@ -20,6 +20,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+#include "gamePCH.h"
 #include "Language.h"
 #include "WorldPacket.h"
 #include "Common.h"
@@ -46,7 +47,7 @@ void WorldSession::HandleGMTicketCreateOpcode(WorldPacket & recv_data)
         return;
     }
 
-    uint32 map, unk1;
+    uint32 map, unk, unk1, unk2;
     uint8 needResponse; // ignored
     float x, y, z;
     std::string ticketText, ticketText2;
@@ -58,8 +59,10 @@ void WorldSession::HandleGMTicketCreateOpcode(WorldPacket & recv_data)
     recv_data >> y;
     recv_data >> z;
     recv_data >> ticketText;
-    recv_data >> unk1; // not sure what this is... replyTo?
+    recv_data >> unk;          // not sure what this is... replyTo?
     recv_data >> needResponse; // always 1/0 -- not sure what retail does with this
+	recv_data >> unk1;
+    recv_data >> unk2;
 
     GM_Ticket *ticket = new GM_Ticket;
     ticket->name = GetPlayer()->GetName();

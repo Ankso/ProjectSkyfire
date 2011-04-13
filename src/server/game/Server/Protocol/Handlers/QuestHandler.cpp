@@ -20,6 +20,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+#include "gamePCH.h"
 #include "Common.h"
 #include "Log.h"
 #include "WorldPacket.h"
@@ -38,6 +39,7 @@
 #include "ConditionMgr.h"
 #include "Creature.h"
 #include "CreatureAI.h"
+#include "GameObjectAI.h"
 
 void WorldSession::HandleQuestgiverStatusQueryOpcode(WorldPacket & recv_data)
 {
@@ -59,7 +61,7 @@ void WorldSession::HandleQuestgiverStatusQueryOpcode(WorldPacket & recv_data)
         {
             sLog.outDebug("WORLD: Received CMSG_QUESTGIVER_STATUS_QUERY for npc, guid = %u",uint32(GUID_LOPART(guid)));
             Creature* cr_questgiver=questgiver->ToCreature();
-            if (!cr_questgiver->IsHostileTo(_player))       // not show quest status to enemies
+            if (!cr_questgiver->IsHostileTo(_player))       // do not show quest status to enemies
             {
                 questStatus = sScriptMgr.GetDialogStatus(_player, cr_questgiver);
                 if (questStatus > 6)
@@ -219,6 +221,7 @@ void WorldSession::HandleQuestgiverAcceptQuestOpcode(WorldPacket & recv_data)
                 }
                 case TYPEID_GAMEOBJECT:
                     sScriptMgr.OnQuestAccept(_player, ((GameObject*)pObject), qInfo);
+                    (pObject->ToGameObject())->AI()->QuestAccept(_player, qInfo);
                     break;
                 default:
                     break;
@@ -333,6 +336,7 @@ void WorldSession::HandleQuestgiverChooseRewardOpcode(WorldPacket & recv_data)
                         // Send next quest
                         if (Quest const* nextquest = _player->GetNextQuest(guid ,pQuest))
                             _player->PlayerTalkClass->SendQuestGiverQuestDetails(nextquest,guid,true);
+                        pObject->ToGameObject()->AI()->QuestReward(_player, pQuest, reward);
                     }
                     break;
                 default:
@@ -459,10 +463,10 @@ void WorldSession::HandleQuestgiverCompleteQuest(WorldPacket& recv_data)
 {
     uint32 quest;
     uint64 guid;
-	uint8 unk;
+    uint8 unk;
 
     recv_data >> guid >> quest;
-	recv_data >> unk;
+    recv_data >> unk;
 
     if (!_player->isAlive())
         return;
@@ -688,7 +692,7 @@ void WorldSession::HandleQuestgiverStatusMultipleQuery(WorldPacket& /*recvPacket
 
     uint32 count = 0;
 
-    WorldPacket data(SMSG_QUESTGIVER_STATUS_MULTIPLE, 4);
+    WorldPacket data(SMSG_QUESTGIVER_STATUS_MULTIPLE, 16);
     data << uint32(count);                                  // placeholder
 
     for (Player::ClientGUIDs::const_iterator itr = _player->m_clientGUIDs.begin(); itr != _player->m_clientGUIDs.end(); ++itr)

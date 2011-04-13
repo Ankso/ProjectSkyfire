@@ -1314,7 +1314,7 @@ public:
             case GOSSIP_OPTION_LEARNDUALSPEC:
                 if (pPlayer->GetSpecsCount() == 1 && !(pPlayer->getLevel() < sWorld.getIntConfig(CONFIG_MIN_DUALSPEC_LEVEL)))
                 {
-                    if (!pPlayer->HasEnoughMoney(10000000))
+                    if (!pPlayer->HasEnoughMoney(100000))
                     {
                         pPlayer->SendBuyError(BUY_ERR_NOT_ENOUGHT_MONEY, 0, 0, 0);
                         pPlayer->PlayerTalkClass->CloseGossip();
@@ -1322,7 +1322,7 @@ public:
                     }
                     else
                     {
-                        pPlayer->ModifyMoney(-10000000);
+                        pPlayer->ModifyMoney(-100000);
 
                         // Cast spells that teach dual spec
                         // Both are also ImplicitTarget self and must be cast by player
@@ -2003,7 +2003,8 @@ public:
 enum eTrainingDummy
 {
     NPC_ADVANCED_TARGET_DUMMY                  = 2674,
-    NPC_TARGET_DUMMY                           = 2673
+    NPC_TARGET_DUMMY                           = 2673,
+	NPC_CATACLYSM_TARGET_DUMMY                 = 44548
 };
 
 class npc_training_dummy : public CreatureScript
@@ -2042,9 +2043,15 @@ public:
         void DamageTaken(Unit * /*done_by*/, uint32 &damage)
         {
             uiResetTimer = 5000;
-            damage = 0;
+            if (uiEntry != NPC_CATACLYSM_TARGET_DUMMY)
+                damage = 0;
         }
 
+        void JustDied(Unit * /*killer*/)
+        {
+            if (uiEntry == NPC_CATACLYSM_TARGET_DUMMY)
+                me->Respawn();
+        }
         void EnterCombat(Unit * /*who*/)
         {
             if (uiEntry != NPC_ADVANCED_TARGET_DUMMY && uiEntry != NPC_TARGET_DUMMY)
@@ -2059,24 +2066,27 @@ public:
             if (!me->hasUnitState(UNIT_STAT_STUNNED))
                 me->SetControlled(true,UNIT_STAT_STUNNED);//disable rotate
 
-            if (uiEntry != NPC_ADVANCED_TARGET_DUMMY && uiEntry != NPC_TARGET_DUMMY)
-            {
-                if (uiResetTimer <= uiDiff)
+            if (uiEntry != NPC_CATACLYSM_TARGET_DUMMY)
+            {            
+			    if (uiEntry != NPC_ADVANCED_TARGET_DUMMY && uiEntry != NPC_TARGET_DUMMY)
                 {
-                    EnterEvadeMode();
-                    uiResetTimer = 5000;
+                    if (uiResetTimer <= uiDiff)
+                    {
+                        EnterEvadeMode();
+                        uiResetTimer = 5000;
+                    }
+                    else
+                        uiResetTimer -= uiDiff;
+                    return;
                 }
                 else
-                    uiResetTimer -= uiDiff;
-                return;
-            }
-            else
-            {
-                if (uiDespawnTimer <= uiDiff)
-                    me->ForcedDespawn();
-                else
-                    uiDespawnTimer -= uiDiff;
-            }
+                {
+                    if (uiDespawnTimer <= uiDiff)
+                        me->ForcedDespawn();
+                    else
+                        uiDespawnTimer -= uiDiff;
+                }
+			}
         }
         void MoveInLineOfSight(Unit * /*who*/){return;}
     };
@@ -2605,6 +2615,97 @@ public:
     }
 };
 
+class npc_ring_of_frost : public CreatureScript
+{
+public:
+    npc_ring_of_frost() : CreatureScript("npc_ring_of_frost") { }
+
+    struct npc_ring_of_frostAI : public ScriptedAI
+    {
+        npc_ring_of_frostAI(Creature *c) : ScriptedAI(c) {}
+        bool Isready;
+        uint32 timer;
+
+        void Reset()
+        {
+            timer = 3000; // 3sec
+            Isready = false;
+        }
+
+        void InitializeAI()
+        {
+        ScriptedAI::InitializeAI();
+        Unit * owner = me->GetOwner();
+        if (!owner || owner->GetTypeId() != TYPEID_PLAYER)
+            return;
+
+        me->SetReactState(REACT_PASSIVE);
+        me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+        me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+
+            // Remove other ring spawned by the player
+            {
+            CellPair pair(Trinity::ComputeCellPair(owner->GetPositionX(), owner->GetPositionY()));
+            Cell cell(pair);
+            cell.data.Part.reserved = ALL_DISTRICT;
+            cell.SetNoCreate();
+
+            std::list<Creature*> templist;
+            Trinity::AllCreaturesOfEntryInGrid check(owner, me->GetEntry());
+            Trinity::CreatureListSearcher<Trinity::AllCreaturesOfEntryInGrid> searcher(owner, templist, check);
+
+            TypeContainerVisitor<Trinity::CreatureListSearcher<Trinity::AllCreaturesOfEntryInGrid>, GridTypeMapContainer> visitor(searcher);
+            cell.Visit(pair, visitor, *(owner->GetMap()));
+
+            if (!templist.empty())
+                for (std::list<Creature*>::const_iterator itr = templist.begin(); itr != templist.end(); ++itr)
+                    if ((*itr)->GetOwner() == me->GetOwner() && *itr != me)
+                        (*itr)->DisappearAndDie();
+                        templist.clear();
+            }
+        }
+
+        void EnterEvadeMode() { return; }
+
+        void CheckIfMoveInRing(Unit *who)
+        {
+            if (who->isAlive() && me->IsInRange(who, 2.0f, 4.7f) && !who->HasAura(82691)/*<= target already frozen*/ && !who->HasAura(91264)/*<= target is immune*/ && me->IsWithinLOSInMap(who) && Isready)
+                me->CastSpell(who, 82691, true);
+        }
+
+        void UpdateAI(const uint32 diff)
+        {
+            if (timer <= diff)
+            {
+                if (!Isready)
+                {
+                    Isready = true;
+                    timer = 9000; // 9sec
+                }
+                else
+                    me->DisappearAndDie();
+            }
+            else
+                timer -= diff;
+
+            // Find all the enemies
+            std::list<Unit*> targets;
+            Trinity::AnyUnfriendlyUnitInObjectRangeCheck u_check(me, me, 5.0f);
+            Trinity::UnitListSearcher<Trinity::AnyUnfriendlyUnitInObjectRangeCheck> searcher(me, targets, u_check);
+            me->VisitNearbyObject(5.0f, searcher);
+            for (std::list<Unit*>::const_iterator iter = targets.begin(); iter != targets.end(); ++iter)
+                CheckIfMoveInRing(*iter);
+        }
+    };
+
+    CreatureAI* GetAI(Creature* pCreature) const
+    {
+        return new npc_ring_of_frostAI(pCreature);
+    }
+};
+
+
+
 void AddSC_npcs_special()
 {
     new npc_air_force_bots;
@@ -2635,5 +2736,6 @@ void AddSC_npcs_special()
     new npc_locksmith;
     new npc_tabard_vendor;
     new npc_experience;
+    new npc_ring_of_frost;
 }
 

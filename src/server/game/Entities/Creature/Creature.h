@@ -58,7 +58,7 @@ enum CreatureFlagsExtra
     CREATURE_FLAG_EXTRA_NO_SKILLGAIN    = 0x00040000,       // creature won't increase weapon skills
     CREATURE_FLAG_EXTRA_TAUNT_DIMINISH  = 0x00080000,       // Taunt is a subject to diminishing returns on this creautre
     CREATURE_FLAG_EXTRA_ALL_DIMINISH    = 0x00100000,       // Creature is subject to all diminishing returns as player are
-	CREATURE_FLAG_EXTRA_DUNGEON_BOSS    = 0x00200000,       // creature is a dungeon boss
+    CREATURE_FLAG_EXTRA_DUNGEON_BOSS    = 0x00200000,       // creature is a dungeon boss
 };
 
 // GCC have alternative #pragma pack(N) syntax and old gcc version not support pack(push,N), also any gcc version not support it at some platform
@@ -302,7 +302,8 @@ enum ChatType
     CHAT_TYPE_BOSS_EMOTE        = 3,
     CHAT_TYPE_WHISPER           = 4,
     CHAT_TYPE_BOSS_WHISPER      = 5,
-    CHAT_TYPE_ZONE_YELL         = 6
+    CHAT_TYPE_ZONE_YELL         = 6,
+    CHAT_TYPE_END               = 255
 };
 
 // GCC have alternative #pragma pack() syntax and old gcc version not support pack(pop), also any gcc version not support it at some platform
@@ -338,7 +339,7 @@ struct VendorItemData
         return m_items[slot];
     }
     bool Empty() const { return m_items.empty(); }
-    uint8 GetItemCount() const { return m_items.size(); }
+    uint32 GetItemCount() const { return m_items.size(); }
     void AddItem(uint32 item, int32 maxcount, uint32 ptime, uint32 ExtendedCost)
     {
         m_items.push_back(new VendorItem(item, maxcount, ptime, ExtendedCost));
@@ -511,6 +512,7 @@ class Creature : public Unit, public GridObject<Creature>
         void UpdateAttackPowerAndDamage(bool ranged = false);
         void UpdateDamagePhysical(WeaponAttackType attType);
         uint32 GetCurrentEquipmentId() { return m_equipmentId; }
+        void SetCurrentEquipmentId(uint32 entry) { m_equipmentId = entry; }
         float GetSpellDamageMod(int32 Rank);
 
         VendorItemData const* GetVendorItems() const;
@@ -602,6 +604,7 @@ class Creature : public Unit, public GridObject<Creature>
         bool isDeadByDefault() const { return m_isDeadByDefault; };
 
         void ForcedDespawn(uint32 timeMSToDespawn = 0);
+        void DespawnOrUnsummon(uint32 msTimeToDespawn = 0);
 
         time_t const& GetRespawnTime() const { return m_respawnTime; }
         time_t GetRespawnTimeEx() const;

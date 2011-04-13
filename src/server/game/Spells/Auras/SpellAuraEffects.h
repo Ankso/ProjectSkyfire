@@ -34,7 +34,7 @@ typedef void(AuraEffect::*pAuraEffectHandler)(AuraApplication const * aurApp, ui
 
 class AuraEffect
 {
-	friend void Aura::_InitEffects(uint8 effMask, Unit * caster, int32 *baseAmount);
+    friend void Aura::_InitEffects(uint8 effMask, Unit * caster, int32 *baseAmount);
     friend Aura::~Aura();
     private:
         ~AuraEffect();
@@ -132,6 +132,8 @@ class AuraEffect
         //  visibility & phases
         void HandleInvisibilityDetect(AuraApplication const * aurApp, uint8 mode, bool apply) const;
         void HandleInvisibility(AuraApplication const * aurApp, uint8 mode, bool apply) const;
+        void HandleModTrapLauncher(AuraApplication const * aurApp, uint8 mode, bool apply) const;
+        void HandleModCamouflage(AuraApplication const * aurApp, uint8 mode, bool apply) const;
         void HandleModStealth(AuraApplication const * aurApp, uint8 mode, bool apply) const;
         void HandleSpiritOfRedemption(AuraApplication const * aurApp, uint8 mode, bool apply) const;
         void HandleAuraGhost(AuraApplication const * aurApp, uint8 mode, bool apply) const;
@@ -213,6 +215,7 @@ class AuraEffect
         void HandleModSpellDamagePercentFromAttackPower(AuraApplication const * aurApp, uint8 mode, bool apply) const;
         void HandleModSpellHealingPercentFromAttackPower(AuraApplication const * aurApp, uint8 mode, bool apply) const;
         void HandleModHealingDone(AuraApplication const * aurApp, uint8 mode, bool apply) const;
+        void HandleAuraModSpellPowerPercent(AuraApplication const * aurApp, uint8 mode, bool apply) const;
         void HandleModTotalPercentStat(AuraApplication const * aurApp, uint8 mode, bool apply) const;
         void HandleAuraModResistenceOfStatPercent(AuraApplication const * aurApp, uint8 mode, bool apply) const;
         void HandleAuraModExpertise(AuraApplication const * aurApp, uint8 mode, bool apply) const;

@@ -20,6 +20,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+#include "gamePCH.h"
 #include "Common.h"
 #include "SharedDefines.h"
 #include "WorldPacket.h"
@@ -1826,7 +1827,7 @@ void WorldObject::AddObjectToRemoveList()
     map->AddObjectToRemoveList(this);
 }
 
-TempSummon *Map::SummonCreature(uint32 entry, const Position &pos, SummonPropertiesEntry const *properties, uint32 duration, Unit *summoner, uint32 vehId)
+TempSummon *Map::SummonCreature(uint32 entry, const Position &pos, SummonPropertiesEntry const *properties, uint32 duration, Unit *summoner, uint32 vehId, uint32 lowGUID)
 {
     uint32 mask = UNIT_MASK_SUMMON;
     if (properties)
@@ -1877,8 +1878,12 @@ TempSummon *Map::SummonCreature(uint32 entry, const Position &pos, SummonPropert
         case UNIT_MASK_MINION:    summon = new Minion     (properties, summoner);  break;
         default:    return NULL;
     }
+    if(!lowGUID)
+    {
+        lowGUID = sObjectMgr.GenerateLowGuid(HIGHGUID_UNIT);
+    }
 
-    if (!summon->Create(sObjectMgr.GenerateLowGuid(HIGHGUID_UNIT), this, phase, entry, vehId, team, pos.GetPositionX(), pos.GetPositionY(), pos.GetPositionZ(), pos.GetOrientation()))
+    if (!summon->Create(lowGUID, this, phase, entry, vehId, team, pos.GetPositionX(), pos.GetPositionY(), pos.GetPositionZ(), pos.GetOrientation()))
     {
         delete summon;
         return NULL;

@@ -20,6 +20,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+#include "gamePCH.h"
 /** \file
     \ingroup u2w
 */
@@ -86,8 +87,7 @@ void InitOpcodeTable()
     OPCODE( SMSG_PET_NAME_QUERY_RESPONSE,                 STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
     OPCODE( CMSG_GUILD_QUERY,                             STATUS_AUTHED,   &WorldSession::HandleGuildQueryOpcode          );
     OPCODE( SMSG_GUILD_QUERY_RESPONSE,                    STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
-    OPCODE( CMSG_ITEM_QUERY_SINGLE,                       STATUS_LOGGEDIN, &WorldSession::HandleItemQuerySingleOpcode     );
-    OPCODE( CMSG_ITEM_QUERY_MULTIPLE,                     STATUS_NEVER,    &WorldSession::Handle_NULL                     );
+    OPCODE( CMSG_COMMENTATOR_START_WARGAME,               STATUS_NEVER,    &WorldSession::Handle_NULL                     );
     OPCODE( SMSG_ITEM_QUERY_SINGLE_RESPONSE,              STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
     OPCODE( SMSG_ITEM_QUERY_MULTIPLE_RESPONSE,            STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
     OPCODE( CMSG_PAGE_TEXT_QUERY,                         STATUS_LOGGEDIN, &WorldSession::HandlePageTextQueryOpcode       );
@@ -145,6 +145,12 @@ void InitOpcodeTable()
     OPCODE( CMSG_GUILD_DISBAND,                           STATUS_LOGGEDIN, &WorldSession::HandleGuildDisbandOpcode        );
     OPCODE( CMSG_GUILD_LEADER,                            STATUS_LOGGEDIN, &WorldSession::HandleGuildLeaderOpcode         );
     OPCODE( CMSG_GUILD_MOTD,                              STATUS_LOGGEDIN, &WorldSession::HandleGuildMOTDOpcode           );
+    OPCODE( CMSG_QUERY_GUILD_REWARDS,                     STATUS_LOGGEDIN, &WorldSession::HandleGuildRewardsOpcode        );
+    OPCODE( CMSG_QUERY_GUILD_XP,                          STATUS_LOGGEDIN, &WorldSession::HandleGuildExperienceOpcode     );
+    OPCODE( CMSG_QUERY_GUILD_MAX_XP,                      STATUS_LOGGEDIN, &WorldSession::HandleGuildMaxExperienceOpcode  );
+    OPCODE( SMSG_GUILD_MAX_DAILY_XP,                      STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
+    OPCODE( SMSG_GUILD_XP_UPDATE,                         STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
+    OPCODE( SMSG_GUILD_REWARDS_LIST,                      STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
     OPCODE( SMSG_GUILD_EVENT,                             STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
     OPCODE( SMSG_GUILD_COMMAND_RESULT,                    STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
     OPCODE( CMSG_MESSAGECHAT_SAY,                         STATUS_LOGGEDIN, &WorldSession::HandleMessagechatOpcode         );
@@ -337,7 +343,7 @@ void InitOpcodeTable()
     OPCODE( CMSG_ATTACKSWING,                             STATUS_LOGGEDIN, &WorldSession::HandleAttackSwingOpcode         );
     OPCODE( CMSG_ATTACKSTOP,                              STATUS_LOGGEDIN, &WorldSession::HandleAttackStopOpcode          );
     OPCODE( SMSG_ATTACKSTART,                             STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
-    OPCODE( SMSG_ATTACKSTOP,                              STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
+    OPCODE( SMSG_ATTACKSTOP,                              STATUS_NEVER,       &WorldSession::Handle_ServerSide               );
     OPCODE( SMSG_ATTACKSWING_NOTINRANGE,                  STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
     OPCODE( SMSG_ATTACKSWING_BADFACING,                   STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
     OPCODE( SMSG_INSTANCE_LOCK_WARNING_QUERY,             STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
@@ -436,8 +442,8 @@ void InitOpcodeTable()
     OPCODE( SMSG_BUY_FAILED,                              STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
     OPCODE( CMSG_TAXICLEARALLNODES,                       STATUS_NEVER,    &WorldSession::Handle_NULL                     );
     OPCODE( CMSG_TAXIENABLEALLNODES,                      STATUS_NEVER,    &WorldSession::Handle_NULL                     );
-    OPCODE( CMSG_TAXISHOWNODES,                           STATUS_NEVER,    &WorldSession::Handle_NULL                     );
-    OPCODE( SMSG_SHOWTAXINODES,                           STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
+    OPCODE( CMSG_TAXISHOWNODES,                           STATUS_LOGGEDIN, &WorldSession::HandleTaxiQueryAvailableNodes   );
+    OPCODE( SMSG_SHOWTAXINODES,                           STATUS_NEVER, &WorldSession::Handle_ServerSide                  );
     OPCODE( CMSG_TAXINODE_STATUS_QUERY,                   STATUS_LOGGEDIN, &WorldSession::HandleTaxiNodeStatusQueryOpcode );
     OPCODE( SMSG_TAXINODE_STATUS,                         STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
     OPCODE( CMSG_TAXIQUERYAVAILABLENODES,                 STATUS_LOGGEDIN, &WorldSession::HandleTaxiQueryAvailableNodes   );
@@ -447,8 +453,7 @@ void InitOpcodeTable()
     OPCODE( CMSG_TRAINER_LIST,                            STATUS_LOGGEDIN, &WorldSession::HandleTrainerListOpcode         );
     OPCODE( SMSG_TRAINER_LIST,                            STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
     OPCODE( CMSG_TRAINER_BUY_SPELL,                       STATUS_LOGGEDIN, &WorldSession::HandleTrainerBuySpellOpcode     );
-    OPCODE( SMSG_TRAINER_BUY_SUCCEEDED,                   STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
-    OPCODE( SMSG_TRAINER_BUY_FAILED,                      STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
+    OPCODE( SMSG_TRAINER_BUY_RESULT,                      STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
     OPCODE( CMSG_BINDER_ACTIVATE,                         STATUS_LOGGEDIN, &WorldSession::HandleBinderActivateOpcode      );
     OPCODE( SMSG_PLAYERBINDERROR,                         STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
     OPCODE( CMSG_BANKER_ACTIVATE,                         STATUS_LOGGEDIN, &WorldSession::HandleBankerActivateOpcode      );
@@ -564,8 +569,7 @@ void InitOpcodeTable()
     OPCODE( CMSG_GUILD_ADD_RANK,                          STATUS_LOGGEDIN, &WorldSession::HandleGuildAddRankOpcode        );
     OPCODE( CMSG_GUILD_DEL_RANK,                          STATUS_LOGGEDIN, &WorldSession::HandleGuildDelRankOpcode        );
     OPCODE( CMSG_GUILD_SWITCH_RANK,                       STATUS_NEVER,    &WorldSession::Handle_NULL                     );
-    OPCODE( CMSG_GUILD_SET_PUBLIC_NOTE,                   STATUS_LOGGEDIN, &WorldSession::HandleGuildSetPublicNoteOpcode  );
-    OPCODE( CMSG_GUILD_SET_OFFICER_NOTE,                  STATUS_LOGGEDIN, &WorldSession::HandleGuildSetOfficerNoteOpcode );
+    OPCODE( CMSG_GUILD_SET_NOTE,                          STATUS_LOGGEDIN, &WorldSession::HandleGuildSetNoteOpcode        );
     OPCODE( SMSG_LOGIN_VERIFY_WORLD,                      STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
     OPCODE( CMSG_CLEAR_EXPLORATION,                       STATUS_NEVER,    &WorldSession::Handle_NULL                     );
     OPCODE( CMSG_SEND_MAIL,                               STATUS_LOGGEDIN, &WorldSession::HandleSendMail                  );
@@ -841,7 +845,7 @@ void InitOpcodeTable()
     OPCODE( CMSG_MOVE_SET_CAN_FLY_ACK,                    STATUS_LOGGEDIN, &WorldSession::HandleMoveSetCanFlyAckOpcode    );
     OPCODE( CMSG_MOVE_SET_FLY,                            STATUS_LOGGEDIN, &WorldSession::HandleMovementOpcodes           );
     OPCODE( CMSG_SOCKET_GEMS,                             STATUS_LOGGEDIN, &WorldSession::HandleSocketOpcode              );
-    OPCODE( CMSG_ARENA_TEAM_CREATE,                       STATUS_NEVER,    &WorldSession::Handle_NULL                     );
+    OPCODE( CMSG_ARENA_TEAM_CREATE,                       STATUS_LOGGEDIN, &WorldSession::HandleArenaTeamCreate           );
     OPCODE( SMSG_ARENA_TEAM_COMMAND_RESULT,               STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
     OPCODE( CMSG_ARENA_TEAM_QUERY,                        STATUS_LOGGEDIN, &WorldSession::HandleArenaTeamQueryOpcode      );
     OPCODE( SMSG_ARENA_TEAM_QUERY_RESPONSE,               STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
@@ -1143,6 +1147,7 @@ void InitOpcodeTable()
     OPCODE( SMSG_CHAR_CUSTOMIZE,                          STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
     OPCODE( SMSG_PET_RENAMEABLE,                          STATUS_NEVER,    &WorldSession::Handle_ServerSide               );
     OPCODE( CMSG_REQUEST_VEHICLE_EXIT,                    STATUS_LOGGEDIN, &WorldSession::HandleRequestVehicleExit        );
+    OPCODE( CMSG_REQUEST_PLAYER_VEHICLE_EXIT,             STATUS_LOGGEDIN, &WorldSession::HandleRequestVehicleExit        );
     OPCODE( CMSG_REQUEST_VEHICLE_PREV_SEAT,               STATUS_LOGGEDIN, &WorldSession::HandleChangeSeatsOnControlledVehicle);
     OPCODE( CMSG_REQUEST_VEHICLE_NEXT_SEAT,               STATUS_LOGGEDIN, &WorldSession::HandleChangeSeatsOnControlledVehicle);
     OPCODE( CMSG_REQUEST_VEHICLE_SWITCH_SEAT,             STATUS_LOGGEDIN, &WorldSession::HandleChangeSeatsOnControlledVehicle);

@@ -20,6 +20,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+#include "gamePCH.h"
 /** \file
     \ingroup world
 */
@@ -74,6 +75,8 @@
 #include "CharacterDatabaseCleaner.h"
 #include "ScriptMgr.h"
 #include "WeatherMgr.h"
+#include "CreatureTextMgr.h"
+#include "SmartAI.h"
 
 volatile bool World::m_stopEvent = false;
 uint8 World::m_ExitCode = SHUTDOWN_EXIT_CODE;
@@ -109,6 +112,8 @@ World::World()
     m_NextDailyQuestReset = 0;
     m_NextWeeklyQuestReset = 0;
     m_scheduledScripts = 0;
+
+    debugOpcode = 0;
 
     m_defaultDbcLocale = LOCALE_enUS;
     m_availableDbcLocaleMask = 0;
@@ -426,13 +431,10 @@ void World::LoadConfigSettings(bool reload)
 
     ///- Read the player limit and the Message of the day from the config file
     SetPlayerAmountLimit(sConfig.GetIntDefault("PlayerLimit", 100));
-    SetMotd(sConfig.GetStringDefault("Motd", "Welcome to a Trinity Core Server."));
+    SetMotd(sConfig.GetStringDefault("Motd", "Welcome to a SkyFire server."));
 
     ///- Get string for new logins (newly created characters)
     SetNewCharString(sConfig.GetStringDefault("PlayerStart.String", ""));
-
-    ///- Send server info on login?
-    m_int_configs[CONFIG_ENABLE_SINFO_LOGIN] = sConfig.GetIntDefault("Server.LoginInfo", 0);
 
     ///- Read all rates from the config file
     rate_values[RATE_HEALTH]      = sConfig.GetFloatDefault("Rate.Health", 1);
@@ -805,7 +807,7 @@ void World::LoadConfigSettings(bool reload)
         m_int_configs[CONFIG_START_PLAYER_MONEY] = MAX_MONEY_AMOUNT;
     }
 
-    m_int_configs[CONFIG_MAX_HONOR_POINTS] = sConfig.GetIntDefault("MaxHonorPoints", 75000);
+    m_int_configs[CONFIG_MAX_HONOR_POINTS] = sConfig.GetIntDefault("MaxHonorPoints", 4000);
     if (int32(m_int_configs[CONFIG_MAX_HONOR_POINTS]) < 0)
     {
         sLog.outError("MaxHonorPoints (%i) can't be negative. Set to 0.",m_int_configs[CONFIG_MAX_HONOR_POINTS]);
@@ -826,25 +828,25 @@ void World::LoadConfigSettings(bool reload)
         m_int_configs[CONFIG_START_HONOR_POINTS] = m_int_configs[CONFIG_MAX_HONOR_POINTS];
     }
 
-    m_int_configs[CONFIG_MAX_ARENA_POINTS] = sConfig.GetIntDefault("MaxArenaPoints", 10000);
-    if (int32(m_int_configs[CONFIG_MAX_ARENA_POINTS]) < 0)
+    m_int_configs[CONFIG_MAX_JUSTICE_POINTS] = sConfig.GetIntDefault("MaxJusticePoints", 4000);
+    if (int32(m_int_configs[CONFIG_MAX_JUSTICE_POINTS]) < 0)
     {
-        sLog.outError("MaxArenaPoints (%i) can't be negative. Set to 0.",m_int_configs[CONFIG_MAX_ARENA_POINTS]);
-        m_int_configs[CONFIG_MAX_ARENA_POINTS] = 0;
+        sLog.outError("MaxJusticePoints (%i) can't be negative. Set to 0.",m_int_configs[CONFIG_MAX_JUSTICE_POINTS]);
+        m_int_configs[CONFIG_MAX_JUSTICE_POINTS] = 0;
     }
 
-    m_int_configs[CONFIG_START_ARENA_POINTS] = sConfig.GetIntDefault("StartArenaPoints", 0);
-    if (int32(m_int_configs[CONFIG_START_ARENA_POINTS]) < 0)
+    m_int_configs[CONFIG_START_JUSTICE_POINTS] = sConfig.GetIntDefault("StartJusticePoints", 0);
+    if (int32(m_int_configs[CONFIG_START_JUSTICE_POINTS]) < 0)
     {
-        sLog.outError("StartArenaPoints (%i) must be in range 0..MaxArenaPoints(%u). Set to %u.",
-            m_int_configs[CONFIG_START_ARENA_POINTS],m_int_configs[CONFIG_MAX_ARENA_POINTS],0);
-        m_int_configs[CONFIG_START_ARENA_POINTS] = 0;
+        sLog.outError("StartJusticePoints (%i) must be in range 0..MaxJusticePoints(%u). Set to %u.",
+            m_int_configs[CONFIG_START_JUSTICE_POINTS],m_int_configs[CONFIG_MAX_JUSTICE_POINTS],0);
+        m_int_configs[CONFIG_START_JUSTICE_POINTS] = 0;
     }
-    else if (m_int_configs[CONFIG_START_ARENA_POINTS] > m_int_configs[CONFIG_MAX_ARENA_POINTS])
+    else if (m_int_configs[CONFIG_START_JUSTICE_POINTS] > m_int_configs[CONFIG_MAX_JUSTICE_POINTS])
     {
-        sLog.outError("StartArenaPoints (%i) must be in range 0..MaxArenaPoints(%u). Set to %u.",
-            m_int_configs[CONFIG_START_ARENA_POINTS],m_int_configs[CONFIG_MAX_ARENA_POINTS],m_int_configs[CONFIG_MAX_ARENA_POINTS]);
-        m_int_configs[CONFIG_START_ARENA_POINTS] = m_int_configs[CONFIG_MAX_ARENA_POINTS];
+        sLog.outError("StartJusticePoints (%i) must be in range 0..MaxJusticePoints(%u). Set to %u.",
+            m_int_configs[CONFIG_START_JUSTICE_POINTS],m_int_configs[CONFIG_MAX_JUSTICE_POINTS],m_int_configs[CONFIG_MAX_JUSTICE_POINTS]);
+        m_int_configs[CONFIG_START_JUSTICE_POINTS] = m_int_configs[CONFIG_MAX_JUSTICE_POINTS];
     }
 
     m_int_configs[CONFIG_MAX_RECRUIT_A_FRIEND_BONUS_PLAYER_LEVEL] = sConfig.GetIntDefault("RecruitAFriend.MaxLevel", 60);
@@ -858,6 +860,14 @@ void World::LoadConfigSettings(bool reload)
     m_int_configs[CONFIG_MAX_RECRUIT_A_FRIEND_BONUS_PLAYER_LEVEL_DIFFERENCE] = sConfig.GetIntDefault("RecruitAFriend.MaxDifference", 3);
     m_bool_configs[CONFIG_ALL_TAXI_PATHS] = sConfig.GetBoolDefault("AllFlightPaths", false);
     m_bool_configs[CONFIG_INSTANT_TAXI] = sConfig.GetBoolDefault("InstantFlightPaths", false);
+
+    m_bool_configs[CONFIG_GUILD_ADVANCEMENT_ENABLED] = sConfig.GetBoolDefault("GuildAdvancement.Enabled", false);// Not yet complete
+    m_int_configs[CONFIG_GUILD_ADVANCEMENT_MAX_LEVEL] = sConfig.GetIntDefault("GuildAdvancement.MaxLevel", 25);
+    if (m_int_configs[CONFIG_GUILD_ADVANCEMENT_MAX_LEVEL] == 0 || m_int_configs[CONFIG_GUILD_ADVANCEMENT_MAX_LEVEL] > 255)
+    {
+        sLog.outError("GuildAdvancement.MaxLevel must be in range 1-255. Setting to default 25");
+        m_int_configs[CONFIG_GUILD_ADVANCEMENT_MAX_LEVEL] = 25;
+    }
 
     m_bool_configs[CONFIG_INSTANCE_IGNORE_LEVEL] = sConfig.GetBoolDefault("Instance.IgnoreLevel", false);
     m_bool_configs[CONFIG_INSTANCE_IGNORE_RAID]  = sConfig.GetBoolDefault("Instance.IgnoreRaid", false);
@@ -963,7 +973,7 @@ void World::LoadConfigSettings(bool reload)
 
     m_int_configs[CONFIG_DISABLE_BREATHING] = sConfig.GetIntDefault("DisableWaterBreath", SEC_CONSOLE);
 
-    m_bool_configs[CONFIG_ALWAYS_MAX_SKILL_FOR_LEVEL] = sConfig.GetBoolDefault("AlwaysMaxSkillForLevel", false);
+    m_bool_configs[CONFIG_USE_OLD_SKILL_SYSTEM] = sConfig.GetBoolDefault("OldSkillSystem", false);
 
     if (reload)
     {
@@ -1554,6 +1564,9 @@ void World::SetInitialWorldSettings()
     sLog.outString("***** GUILDS *****");
     sObjectMgr.LoadGuilds();
 
+    sLog.outString("Loading Guild Rewards...");
+    sObjectMgr.LoadGuildRewards();
+
     sLog.outString("Loading ArenaTeams...");
     sObjectMgr.LoadArenaTeams();
 
@@ -1588,6 +1601,9 @@ void World::SetInitialWorldSettings()
 
     sLog.outString("Loading Waypoints...");
     sWaypointMgr->Load();
+
+    sLog.outString("Loading SmartAI Waypoints...");
+    sSmartWaypointMgr.LoadFromDB();
 
     sLog.outString("Loading Creature Formations...");
     formation_mgr.LoadCreatureFormations();
@@ -1650,11 +1666,17 @@ void World::SetInitialWorldSettings()
     sLog.outString("Loading spell script names...");
     sObjectMgr.LoadSpellScriptNames();
 
+    sLog.outString("Loading Creature Texts...");
+    sCreatureTextMgr.LoadCreatureTexts();
+
     sLog.outString("Initializing Scripts...");
     sScriptMgr.Initialize();
 
     sLog.outString("Validating spell scripts...");
     sObjectMgr.ValidateSpellScripts();
+
+    sLog.outString("Loading SmartAI scripts...");
+    sSmartScriptMgr.LoadSmartAIFromDB();
 
     ///- Initialize game time and timers
     sLog.outDebug("DEBUG:: Initialize game time and timers");
@@ -2722,6 +2744,7 @@ void World::SetPlayerSecurityLimit(AccountTypes _sec)
 void World::ResetWeeklyQuests()
 {
     CharacterDatabase.Execute("DELETE FROM character_queststatus_weekly");
+	CharacterDatabase.Execute("UPDATE character_currency SET thisweek = 0");
     for (SessionMap::const_iterator itr = m_sessions.begin(); itr != m_sessions.end(); ++itr)
         if (itr->second->GetPlayer())
             itr->second->GetPlayer()->ResetWeeklyQuestStatus();

@@ -169,7 +169,7 @@ class WorldSession
         void SendPetNameInvalid(uint32 error, const std::string& name, DeclinedName *declinedName);
         void SendPartyResult(PartyOperation operation, const std::string& member, PartyResult res, uint32 val = 0);
         void SendAreaTriggerMessage(const char* Text, ...) ATTR_PRINTF(2,3);
-        void SendSetPhaseShift(uint32 phaseShift);
+        void SendSetPhaseShift(uint32 phaseShift, uint32 MapID = 0);
         void SendQueryTimeResponse();
 
         AccountTypes GetSecurity() const { return _security; }
@@ -506,8 +506,10 @@ class WorldSession
         void HandleGuildDisbandOpcode(WorldPacket& recvPacket);
         void HandleGuildLeaderOpcode(WorldPacket& recvPacket);
         void HandleGuildMOTDOpcode(WorldPacket& recvPacket);
-        void HandleGuildSetPublicNoteOpcode(WorldPacket& recvPacket);
-        void HandleGuildSetOfficerNoteOpcode(WorldPacket& recvPacket);
+        void HandleGuildExperienceOpcode(WorldPacket& recvPacket);
+        void HandleGuildMaxExperienceOpcode(WorldPacket& recvPacket);
+        void HandleGuildRewardsOpcode(WorldPacket& recvPacket);
+        void HandleGuildSetNoteOpcode(WorldPacket& recvPacket);
         void HandleGuildRankOpcode(WorldPacket& recvPacket);
         void HandleGuildAddRankOpcode(WorldPacket& recvPacket);
         void HandleGuildDelRankOpcode(WorldPacket& recvPacket);
@@ -749,6 +751,7 @@ class WorldSession
         void SendLfgTeleportError(uint8 err);
 
         // Arena Team
+        void HandleArenaTeamCreate(WorldPacket& recv_packet);
         void HandleInspectArenaTeamsOpcode(WorldPacket& recv_data);
         void HandleArenaTeamQueryOpcode(WorldPacket& recv_data);
         void HandleArenaTeamRosterOpcode(WorldPacket& recv_data);

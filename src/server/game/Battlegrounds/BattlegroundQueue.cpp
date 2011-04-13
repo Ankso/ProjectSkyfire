@@ -20,6 +20,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+#include "gamePCH.h"
 #include "BattlegroundQueue.h"
 #include "ArenaTeam.h"
 #include "BattlegroundMgr.h"
@@ -345,7 +346,7 @@ void BattlegroundQueue::RemovePlayer(const uint64& guid, bool decreaseInvitedCou
     // if invited to bg, and should decrease invited count, then do it
     if (decreaseInvitedCount && group->IsInvitedToBGInstanceGUID)
     {
-        Battleground* bg = sBattlegroundMgr.GetBattleground(group->IsInvitedToBGInstanceGUID, group->BgTypeId);
+        Battleground* bg = sBattlegroundMgr.GetBattleground(group->IsInvitedToBGInstanceGUID, group->BgTypeId == BATTLEGROUND_AA ? BATTLEGROUND_TYPE_NONE : group->BgTypeId);
         if (bg)
             bg->DecreaseInvitedCount(group->Team);
     }
@@ -802,7 +803,7 @@ void BattlegroundQueue::Update(BattlegroundTypeId bgTypeId, BattlegroundBracketI
     {
         if (sBattlegroundMgr.isArenaTesting())
         {
-            MaxPlayersPerTeam = 1;
+            MaxPlayersPerTeam = arenaType;
             MinPlayersPerTeam = 1;
         }
         else

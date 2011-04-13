@@ -20,6 +20,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+#include "gamePCH.h"
 #include "Common.h"
 #include "Language.h"
 #include "DatabaseEnv.h"
@@ -52,6 +53,7 @@
 #include "MapManager.h"
 #include "InstanceScript.h"
 #include "LFGMgr.h"
+#include "GameObjectAI.h"
 
 void WorldSession::HandleRepopRequestOpcode(WorldPacket & recv_data)
 {
@@ -142,25 +144,29 @@ void WorldSession::HandleGossipSelectOptionOpcode(WorldPacket & recv_data)
     {
         if (unit)
         {
+            unit->AI()->sGossipSelectCode(_player, menuId, gossipListId, code.c_str());
             if (!sScriptMgr.OnGossipSelectCode(_player, unit, _player->PlayerTalkClass->GossipOptionSender(gossipListId), _player->PlayerTalkClass->GossipOptionAction(gossipListId), code.c_str()))
                 _player->OnGossipSelect(unit, gossipListId, menuId);
-
-            unit->AI()->sGossipSelectCode(_player, _player->PlayerTalkClass->GossipOptionSender(gossipListId), _player->PlayerTalkClass->GossipOptionAction(gossipListId), code.c_str());
         }
         else
+        {
+            go->AI()->GossipSelectCode(_player, menuId, gossipListId, code.c_str());
             sScriptMgr.OnGossipSelectCode(_player, go, _player->PlayerTalkClass->GossipOptionSender(gossipListId), _player->PlayerTalkClass->GossipOptionAction(gossipListId), code.c_str());
+        }
     }
     else
     {
         if (unit)
         {
+            unit->AI()->sGossipSelect(_player, menuId, gossipListId);
             if (!sScriptMgr.OnGossipSelect(_player, unit, _player->PlayerTalkClass->GossipOptionSender(gossipListId), _player->PlayerTalkClass->GossipOptionAction(gossipListId)))
                 _player->OnGossipSelect(unit, gossipListId, menuId);
-
-            unit->AI()->sGossipSelect(_player, _player->PlayerTalkClass->GossipOptionSender(gossipListId), _player->PlayerTalkClass->GossipOptionAction(gossipListId));
         }
         else
+        {
+            go->AI()->GossipSelect(_player, menuId, gossipListId);
             sScriptMgr.OnGossipSelect(_player, go, _player->PlayerTalkClass->GossipOptionSender(gossipListId), _player->PlayerTalkClass->GossipOptionAction(gossipListId));
+        }
     }
 }
 
@@ -1258,15 +1264,11 @@ void WorldSession::HandleInspectHonorStatsOpcode(WorldPacket& recv_data)
         return;
     }
 
-    WorldPacket data(SMSG_INSPECT_HONOR_STATS, 2+2+1+4+8);
-    data << uint16(0);//unk
-    data << uint16(0);//unk
-    data << uint8(player->GetHonorPoints()); //?
-    data << uint32(player->GetUInt32Value(PLAYER_FIELD_KILLS)); //?
+    WorldPacket data(SMSG_INSPECT_HONOR_STATS, 4+1+4+8);
+    data << uint32(player->GetUInt32Value(PLAYER_FIELD_KILLS));
+    data << uint8(0); // rank
+    data << uint32(player->GetUInt32Value(PLAYER_FIELD_LIFETIME_HONORBALE_KILLS));
     data << uint64(player->GetGUID());
-    //data << uint32(player->GetUInt32Value(PLAYER_FIELD_TODAY_CONTRIBUTION));
-    //data << uint32(player->GetUInt32Value(PLAYER_FIELD_YESTERDAY_CONTRIBUTION));
-    //data << uint32(player->GetUInt32Value(PLAYER_FIELD_LIFETIME_HONORABLE_KILLS)); //OMG CHANGE THIS!
     SendPacket(&data);
 }
 
@@ -1719,10 +1721,30 @@ void WorldSession::HandleReadyForAccountDataTimes(WorldPacket& /*recv_data*/)
     SendAccountDataTimes(GLOBAL_CACHE_MASK);
 }
 
-void WorldSession::SendSetPhaseShift(uint32 PhaseShift)
+void WorldSession::SendSetPhaseShift(uint32 PhaseShift, uint32 MapID)
 {
+    if (!_player)
+        return;
+
     WorldPacket data(SMSG_SET_PHASE_SHIFT, 4);
-    data << uint32(PhaseShift);
+    data << uint64(_player->GetGUID());
+    data << uint32(0); // Count of bytes - Array1 - Unused
+    data << uint32(0); // Count of bytes - Array2 - TerrainSwap, unused.
+
+    data << uint32(2); // Count of bytes - Array3 - Phases
+    data << uint16(PhaseShift);
+    
+    if (MapID)
+    {
+        data << uint32(2); // Count of bytes - Array4 - TerrainSwap
+        data << uint16(MapID);
+    }
+    else data << uint32(0);
+
+    if (!PhaseShift)
+        data << uint32(0x08);
+    else
+        data << uint32(0); // Flags (seem to be from Phase.dbc, not really sure)
     SendPacket(&data);
 }
 
@@ -1731,7 +1753,7 @@ void WorldSession::HandleHearthAndResurrect(WorldPacket& /*recv_data*/)
     if (_player->isInFlight())
         return;
 
-    AreaTableEntry const *atEntry = sAreaStore.LookupEntry(_player->GetAreaId());
+    AreaTableEntry const *atEntry = GetAreaEntryByAreaID(_player->GetAreaId());
     if (!atEntry || !(atEntry->flags & AREA_FLAG_OUTDOOR_PVP2))
         return;
 

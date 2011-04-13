@@ -20,6 +20,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+#include "gamePCH.h"
 #include "Common.h"
 #include "DatabaseEnv.h"
 #include "WorldPacket.h"
@@ -1474,7 +1475,8 @@ float Creature::GetAttackDistance(Unit const* pl) const
 
     // "Minimum Aggro Radius for a mob seems to be combat range (5 yards)"
     if (RetDistance < 5)
-        RetDistance = 5;
+        if (!(pl->isCamouflaged()))
+            RetDistance = 5;
 
     return (RetDistance*aggroRate);
 }
@@ -1643,6 +1645,14 @@ void Creature::ForcedDespawn(uint32 timeMSToDespawn)
         setDeathState(JUST_DIED);
 
     RemoveCorpse(false);
+}
+
+void Creature::DespawnOrUnsummon(uint32 msTimeToDespawn /*= 0*/)
+{
+    if (TempSummon* summon = this->ToTempSummon())
+        summon->UnSummon();
+    else
+        ForcedDespawn(msTimeToDespawn);
 }
 
 bool Creature::IsImmunedToSpell(SpellEntry const* spellInfo)

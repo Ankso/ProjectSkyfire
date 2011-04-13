@@ -20,6 +20,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+#include "gamePCH.h"
 #include "DatabaseEnv.h"
 #include "Mail.h"
 #include "Log.h"
@@ -69,7 +70,7 @@ MailReceiver::MailReceiver(Player* receiver) : m_receiver(receiver), m_receiver_
 {
 }
 
-MailReceiver::MailReceiver(Player* receiver,uint32 receiver_lowguid) : m_receiver(receiver), m_receiver_lowguid(receiver_lowguid)
+MailReceiver::MailReceiver(Player* receiver,uint64 receiver_lowguid) : m_receiver(receiver), m_receiver_lowguid(receiver_lowguid)
 {
     ASSERT(!receiver || receiver->GetGUIDLow() == receiver_lowguid);
 }

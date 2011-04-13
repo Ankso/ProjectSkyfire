@@ -166,6 +166,7 @@ class ChatHandler
         bool HandleDebugSetAuraStateCommand(const char * args);
         bool HandleDebugSetItemValueCommand(const char * args);
         bool HandleDebugItemExpireCommand(const char * args);
+        bool HandleDebugOpcodeCommand(const char * args);
         bool HandleDebugSetVehicleId(const char * args);
         bool HandleDebugEnterVehicle(const char * args);
         bool HandleDebugSetValueCommand(const char* args);
@@ -301,13 +302,12 @@ class ChatHandler
         bool HandleModifyFactionCommand(const char* args);
         bool HandleModifySpellCommand(const char* args);
         bool HandleModifyTalentCommand (const char* args);
-        bool HandleModifyHonorCommand (const char* args);
+        bool HandleModifyCurrencyCommand (const char* args);
         bool HandleModifyRepCommand(const char* args);
-        bool HandleModifyArenaCommand(const char* args);
         bool HandleModifyPhaseCommand(const char* args);
         bool HandleModifyGenderCommand(const char* args);
 
-		bool HandleOpcodeTestCommand(const char* args);
+        bool HandleOpcodeTestCommand(const char* args);
 
         //-----------------------Npc Commands-----------------------
         bool HandleNpcAddCommand(const char* args);
@@ -454,6 +454,8 @@ class ChatHandler
         bool HandleReloadAuctionsCommand(const char* args);
         bool HandleReloadWpScriptsCommand(const char* args);
         bool HandleReloadConditions(const char* args);
+        bool HandleReloadCreatureText(const char* args);
+        bool HandleReloadSmartScripts(const char* args);
 
         bool HandleResetAchievementsCommand(const char * args);
         bool HandleResetAllCommand(const char * args);

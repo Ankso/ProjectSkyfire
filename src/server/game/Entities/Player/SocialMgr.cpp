@@ -20,6 +20,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+#include "gamePCH.h"
 #include "SocialMgr.h"
 
 #include "DatabaseEnv.h"
@@ -122,8 +123,7 @@ void PlayerSocial::SendSocialList(Player* plr, uint32 mask)
     if (!plr)
         return;
 
-    uint32 size = m_playerSocialMap.size();
-
+    
     WorldPacket data(SMSG_CONTACT_LIST, (4 + 4));           // just can guess size
     data << uint32(mask);                                   // flag (0x1, 0x2, 0x4)
     size_t countPos = data.wpos();

@@ -256,8 +256,8 @@ class AchievementMgr
         static void DeleteFromDB(uint32 lowguid);
         void LoadFromDB(PreparedQueryResult achievementResult, PreparedQueryResult criteriaResult);
         void SaveToDB(SQLTransaction& trans);
-        void ResetAchievementCriteria(AchievementCriteriaTypes type, uint32 miscvalue1 = 0, uint32 miscvalue2 = 0, bool evenIfCriteriaComplete = false);
-        void UpdateAchievementCriteria(AchievementCriteriaTypes type, uint32 miscvalue1 = 0, uint32 miscvalue2 = 0, Unit *unit = NULL, uint32 time = 0);
+		void ResetAchievementCriteria(AchievementCriteriaTypes type, uint64 miscvalue1 = 0, uint64 miscvalue2 = 0, bool evenIfCriteriaComplete = false);
+        void UpdateAchievementCriteria(AchievementCriteriaTypes type, uint64 miscvalue1 = 0, uint64 miscvalue2 = 0, Unit *unit = NULL, uint32 time = 0);
         void CompletedAchievement(AchievementEntry const* entry, bool ignoreGMAllowAchievementConfig = false);
         void CheckAllAchievementCriteria();
         void SendAllAchievementData();
@@ -279,7 +279,9 @@ class AchievementMgr
         bool IsCompletedCriteria(AchievementCriteriaEntry const* criteria, AchievementEntry const* achievement);
         bool IsCompletedAchievement(AchievementEntry const* entry);
         //void CompleteAchievementsWithRefs(AchievementEntry const* entry);
-        void BuildAllDataPacket(WorldPacket *data);
+
+        void Compress(WorldPacket& data, uint32 newOpcode);
+        void Compress(void* dst, uint32 *dst_size, void* src, int src_size);
 
         Player* m_player;
         CriteriaProgressMap m_criteriaProgress;

@@ -20,6 +20,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+#include "gamePCH.h"
 #include "Common.h"
 #include "DatabaseEnv.h"
 #include "World.h"
@@ -102,7 +103,7 @@ bool ChatHandler::HandleServerInfoCommand(const char* /*args*/)
     uint32 maxActiveClientsNum = sWorld.GetMaxActiveSessionCount();
     uint32 maxQueuedClientsNum = sWorld.GetMaxQueuedSessionCount();
     std::string uptime = secsToTimeString(sWorld.GetUptime());
-    uint32 updateTime = sWorld.GetUpdateTime();
+    //uint32 updateTime = sWorld.GetUpdateTime();
 
     PSendSysMessage(_FULLVERSION);
     PSendSysMessage(LANG_CONNECTED_PLAYERS, PlayersNum, MaxPlayersNum);

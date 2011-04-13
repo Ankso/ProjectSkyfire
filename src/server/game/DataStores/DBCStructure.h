@@ -789,20 +789,43 @@ struct CreatureTypeEntry
     DBCString Name;                                         // 2        name
 };*/
 
-/*struct CurrencyTypesEntry
+struct CurrencyTypesEntry
 {
-    //uint32    ID;                                         // 0        not used
+    uint32    ID;                                           // 0        not used
     //uint32    Category;                                   // 1        may be category
     //DBCString name;                                       // 2
     //DBCString iconName;                                   // 3
-    //uint32                                                // 4
-    //uint32                                                // 5
-    //uint32                                                // 6
-    //uint32                                                // 7
-    //uint32                                                // 8
-    //uint32                                                // 9
+    //uint32 unk4;                                          // 4        all 0
+    //uint32 unk5;                                          // 5        archaeology-related (?)
+    //uint32 unk6;                                          // 6        archaeology-related (?)
+    uint32 TotalCap;                                        // 7
+    uint32 WeekCap;                                         // 8
+    //int32 unk9;                                           // 9
     //DBCString description;                                // 10
-};*/
+};
+
+struct DestructibleModelDataEntry
+{
+    uint32  Id;
+    //uint32  DamagedUnk1;
+    //uint32  DamagedUnk2;
+    uint32  DamagedDisplayId;
+    //uint32  DamagedUnk3;
+    //uint32  DestroyedUnk1;
+    //uint32  DestroyedUnk2;
+    uint32  DestroyedDisplayId;
+    //uint32  DestroyedUnk3;
+    //uint32  RebuildingUnk1;
+    //uint32  RebuildingUnk2;
+    uint32  RebuildingDisplayId;
+    //uint32  RebuildingUnk3;
+    //uint32  SmokeUnk1;
+    //uint32  SmokeUnk2;
+    uint32  SmokeDisplayId;
+    //uint32  SmokeUnk3;
+    //uint32  Unk4;
+    //uint32  Unk5;
+};
 
 struct DurabilityCostsEntry
 {
@@ -945,7 +968,7 @@ struct GlyphSlotEntry
 {
     uint32  Id;
     uint32  TypeFlags;
-    uint32  Order;
+    uint32  LearningOrder;
 };
 
 // All Gt* DBC store data for 100 levels, some by 100 per class/race
@@ -1114,20 +1137,24 @@ struct ItemDamageEntry
 
 #define MAX_ITEM_EXTENDED_COST_REQUIREMENTS 5
 
+#define MAX_EXTENDED_COST_ITEMS         5
+#define MAX_EXTENDED_COST_CURRENCIES    5
+
 struct ItemExtendedCostEntry
 {
-    uint32      ID;                                         // 0 extended-cost entry id
-    uint32      reqhonorpoints;                             // 1 required honor points
-    uint32      reqarenapoints;                             // 2 required arena points
-    uint32      reqarenaslot;                               // 4 arena slot restrictions (min slot value)
-    uint32      reqitem[5];                                 // 5-8 required item id
-    uint32      reqitemcount[5];                            // 9-13 required count of 1st item
-    uint32      reqpersonalarenarating;                     // 14 required personal arena rating};
-    //uint32                                                // 15
-    //uint32    someId[5];                                  // 16-20, may be currency id's
-    //uint32    someCount[5];                               // 21-25
-    //uint32    something[5];                               // 26-30
+	uint32      ID;                                         // 0 extended-cost entry id
+	//uint32      reqhonorpoints;                             // 1 required honor points
+	//uint32      reqarenapoints;                             // 2 required arena points
+	uint32      RequiredArenaSlot;                          // 4 arena slot restrictions (min slot value)
+	uint32      RequiredItem[MAX_EXTENDED_COST_ITEMS];      // 5-8 required item id
+	uint32      RequiredItemCount[MAX_EXTENDED_COST_ITEMS]; // 9-13 required count of 1st item
+	uint32      RequiredPersonalArenaRating;                // 14 required personal arena rating
+	//uint32                                                // 15
+	uint32      RequiredCurrency[MAX_EXTENDED_COST_CURRENCIES];      // 16-20
+	uint32      RequiredCurrencyCount[MAX_EXTENDED_COST_CURRENCIES]; // 21-25
+	//uint32    something[5];                               // 26-30
 };
+
 
 struct ItemLimitCategoryEntry
 {
@@ -1737,7 +1764,6 @@ struct SpellEntry_n //Structure of the true Spell.dbc
     uint32 SpellLevelsId;                                   // 40       SpellLevels.dbc
     uint32 SpellPowerId;                                    // 41       SpellPower.dbc
     uint32 SpellReagentsId;                                 // 42       SpellReagents.dbc
-    //uint32 unk1;                                          // 43    
     uint32 SpellTargetRestrictionsId;                       // 44       SpellTargetRestrictions.dbc
     uint32 SpellTotemsId;                                   // 45       SpellTotems.dbc
     //uint32 unk2;                                          // 46
@@ -1787,7 +1813,6 @@ struct SpellEntry
     uint32 SpellLevelsId;                                   // 40       SpellLevels.dbc
     uint32 SpellPowerId;                                    // 41       SpellPower.dbc
     uint32 SpellReagentsId;                                 // 42       SpellReagents.dbc
-    //uint32 unk1;                                          // 43
     uint32 SpellTargetRestrictionsId;                       // 44       SpellTargetRestrictions.dbc
     uint32 SpellTotemsId;                                   // 45       SpellTotems.dbc
     //uint32 unk2;                                          // 46
@@ -2045,7 +2070,7 @@ struct SpellShapeshiftFormEntry
     //uint32 unk4;                                          // 10 unused always 0
     uint32 stanceSpell[MAX_SHAPESHIFT_SPELLS];              // 11-18 spells which appear in the bar after shapeshifting
     //uint32 unk5;                                          // 19 unk, only defined for flight form.
-	//uint32 unk6;                                          // 20
+    //uint32 unk6;                                          // 20
 };
 
 struct SpellDurationEntry
@@ -2101,6 +2126,13 @@ struct SummonPropertiesEntry
     uint32  Flags;                                          // 5
 };
 
+struct GuildPerksEntry
+{
+    uint32 Id;
+    uint32 Level;
+    uint32 SpellId;
+};
+
 
 #define MAX_TALENT_RANK 5
 #define MAX_PET_TALENT_RANK 3                               // use in calculations, expected <= MAX_TALENT_RANK
@@ -2141,7 +2173,6 @@ struct TalentTreePrimarySpellsEntry
     uint32 Id;                                              // 0
     uint32 TalentTabID;                                     // 1
     uint32 SpellID;                                         // 2
-    //uint32 unk1                                           // 3
 };
 
 struct TaxiNodesEntry

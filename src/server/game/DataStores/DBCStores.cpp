@@ -20,6 +20,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+#include "gamePCH.h"
 #include "DBCStores.h"
 
 #include "Logging/Log.h"
@@ -79,7 +80,8 @@ DBCStorage <CreatureDisplayInfoEntry> sCreatureDisplayInfoStore(CreatureDisplayI
 DBCStorage <CreatureFamilyEntry> sCreatureFamilyStore(CreatureFamilyfmt);
 DBCStorage <CreatureSpellDataEntry> sCreatureSpellDataStore(CreatureSpellDatafmt);
 DBCStorage <CreatureTypeEntry> sCreatureTypeStore(CreatureTypefmt);
-//DBCStorage <CurrencyTypesEntry> sCurrencyTypesStore(CurrencyTypesfmt);
+DBCStorage <CurrencyTypesEntry> sCurrencyTypesStore(CurrencyTypesfmt);
+DBCStorage <DestructibleModelDataEntry> sDestructibleModelDataStore(DestructibleModelDatafmt);
 
 DBCStorage <DurabilityQualityEntry> sDurabilityQualityStore(DurabilityQualityfmt);
 DBCStorage <DurabilityCostsEntry> sDurabilityCostsStore(DurabilityCostsfmt);
@@ -199,6 +201,7 @@ DBCStorage <SpellRuneCostEntry> sSpellRuneCostStore(SpellRuneCostfmt);
 DBCStorage <SpellShapeshiftFormEntry> sSpellShapeshiftFormStore(SpellShapeshiftFormfmt);
 //DBCStorage <StableSlotPricesEntry> sStableSlotPricesStore(StableSlotPricesfmt);
 DBCStorage <SummonPropertiesEntry> sSummonPropertiesStore(SummonPropertiesfmt);
+DBCStorage <GuildPerksEntry> sGuildPerksStore(GuildPerksfmt);
 DBCStorage <TalentEntry> sTalentStore(TalentEntryfmt);
 TalentSpellPosMap sTalentSpellPosMap;
 DBCStorage <TalentTabEntry> sTalentTabStore(TalentTabEntryfmt);
@@ -282,7 +285,7 @@ void LoadDBCStores(const std::string& dataPath)
 {
     std::string dbcPath = dataPath+"dbc/";
 
-    const uint32 DBCFilesCount = 117;
+    const uint32 DBCFilesCount = 118;
 
     StoreProblemList bad_dbc_files;
     uint32 availableDbcLocales = 0xFFFFFFFF;
@@ -323,7 +326,7 @@ void LoadDBCStores(const std::string& dataPath)
     LoadDBC(availableDbcLocales,bad_dbc_files,sCreatureFamilyStore,      dbcPath,"CreatureFamily.dbc");
     LoadDBC(availableDbcLocales,bad_dbc_files,sCreatureSpellDataStore,   dbcPath,"CreatureSpellData.dbc");
     LoadDBC(availableDbcLocales,bad_dbc_files,sCreatureTypeStore,        dbcPath,"CreatureType.dbc");
-    //LoadDBC(availableDbcLocales,bad_dbc_files,sCurrencyTypesStore,       dbcPath,"CurrencyTypes.dbc");
+    LoadDBC(availableDbcLocales,bad_dbc_files,sCurrencyTypesStore,       dbcPath,"CurrencyTypes.dbc");
     LoadDBC(availableDbcLocales,bad_dbc_files,sDurabilityCostsStore,     dbcPath,"DurabilityCosts.dbc");
     LoadDBC(availableDbcLocales,bad_dbc_files,sDurabilityQualityStore,   dbcPath,"DurabilityQuality.dbc");
     LoadDBC(availableDbcLocales,bad_dbc_files,sEmotesStore,              dbcPath,"Emotes.dbc");
@@ -515,6 +518,7 @@ void LoadDBCStores(const std::string& dataPath)
     //LoadDBC(availableDbcLocales,bad_dbc_files,sStableSlotPricesStore,    dbcPath,"StableSlotPrices.dbc");
     LoadDBC(availableDbcLocales,bad_dbc_files,sSummonPropertiesStore,    dbcPath,"SummonProperties.dbc");
     LoadDBC(availableDbcLocales,bad_dbc_files,sTalentStore,              dbcPath,"Talent.dbc");
+    LoadDBC(availableDbcLocales,bad_dbc_files,sGuildPerksStore,          dbcPath,"GuildPerkSpells.dbc");
 
     // Create Spelldifficulty searcher
     for (uint32 i = 0; i < sSpellDifficultyStore.GetNumRows(); ++i)

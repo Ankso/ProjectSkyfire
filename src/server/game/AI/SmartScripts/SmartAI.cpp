@@ -83,7 +83,7 @@ void SmartAI::UpdateDespawn(const uint32 diff)
     {
         if (mDespawnState == 2)
         {
-            me->SetVisibility(VISIBILITY_OFF);
+            me->SetVisible(false);
             mDespawnTime = 5000;
             mDespawnState++;
         }
@@ -111,7 +111,7 @@ WayPoint* SmartAI::GetNextWayPoint()
         mLastWP = (*itr).second;
         if (mLastWP->id != mCurrentWPID)
         {
-            sLog.outError("SmartAI::GetNextWayPoint: Got not expected waypoint id %u, expected %u", mLastWP->id, mCurrentWPID);
+            sLog->outError("SmartAI::GetNextWayPoint: Got not expected waypoint id %u, expected %u", mLastWP->id, mCurrentWPID);
         }
         return (*itr).second;
     }
@@ -122,7 +122,7 @@ void SmartAI::StartPath(bool run, uint32 path, bool repeat, Unit* /*invoker*/)
 {
     if (me->isInCombat())// no wp movement in combat
     {
-        sLog.outError("SmartAI::StartPath: Creature entry %u wanted to start waypoint movement while in combat, ignoring.", me->GetEntry());
+        sLog->outError("SmartAI::StartPath: Creature entry %u wanted to start waypoint movement while in combat, ignoring.", me->GetEntry());
         return;
     }
     if (HasEscortState(SMART_ESCORT_ESCORTING))
@@ -151,7 +151,7 @@ bool SmartAI::LoadPath(uint32 entry)
 {
     if (HasEscortState(SMART_ESCORT_ESCORTING))
         return false;
-    mWayPoints = sSmartWaypointMgr.GetPath(entry);
+    mWayPoints = sSmartWaypointMgr->GetPath(entry);
     if (!mWayPoints)
     {
         GetScript()->SetPathId(0);
@@ -167,7 +167,7 @@ void SmartAI::PausePath(uint32 delay, bool forced)
         return;
     if (HasEscortState(SMART_ESCORT_PAUSED))
     {
-        sLog.outError("SmartAI::StartPath: Creature entry %u wanted to pause waypoint movement while already paused, ignoring.", me->GetEntry());
+        sLog->outError("SmartAI::StartPath: Creature entry %u wanted to pause waypoint movement while already paused, ignoring.", me->GetEntry());
         return;
     }
     mForcedPaused = forced;
@@ -547,7 +547,7 @@ void SmartAI::JustRespawned()
     mDespawnTime = 0;
     mDespawnState = 0;
     mEscortState = SMART_ESCORT_NONE;
-    me->SetVisibility(VISIBILITY_ON);
+    me->SetVisible(true);
     if (me->getFaction() != me->GetCreatureInfo()->faction_A)
         me->RestoreFaction();
     GetScript()->ProcessEventsFor(SMART_EVENT_RESPAWN);
@@ -848,7 +848,7 @@ void SmartGameObjectAI::Reset()
 // Called when a player opens a gossip dialog with the gameobject.
 bool SmartGameObjectAI::GossipHello(Player* player)
 {
-    sLog.outDebug("SmartGameObjectAI::GossipHello");
+    sLog->outDebug("SmartGameObjectAI::GossipHello");
     GetScript()->ProcessEventsFor(SMART_EVENT_GOSSIP_HELLO, player, 0 ,0 , false, NULL, go);
     return false;
 }
@@ -912,7 +912,7 @@ class SmartTrigger : public AreaTriggerScript
 
         bool OnTrigger(Player* player, AreaTriggerEntry const* trigger)
         {
-            sLog.outDebug("AreaTrigger %u is using SmartTrigger script", trigger->id);
+            sLog->outDebug("AreaTrigger %u is using SmartTrigger script", trigger->id);
             SmartScript script;
             script.OnInitialize(NULL, trigger);
             script.ProcessEventsFor(SMART_EVENT_AREATRIGGER_ONTRIGGER, player, trigger->id);

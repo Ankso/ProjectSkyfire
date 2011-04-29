@@ -143,6 +143,43 @@ enum CharterTypes
     ARENA_TEAM_CHARTER_5v5_TYPE                   = 5
 };
 
+//class to deal with packet processing
+//allows to determine if next packet is safe to be processed
+class PacketFilter
+{
+public:
+    explicit PacketFilter(WorldSession * pSession) : m_pSession(pSession) {}
+    virtual ~PacketFilter() {}
+
+    virtual bool Process(WorldPacket * packet) { return true; }
+    virtual bool ProcessLogout() const { return true; }
+
+protected:
+    WorldSession * const m_pSession;
+};
+//process only thread-safe packets in Map::Update()
+class MapSessionFilter : public PacketFilter
+{
+public:
+    explicit MapSessionFilter(WorldSession * pSession) : PacketFilter(pSession) {}
+    ~MapSessionFilter() {}
+
+    virtual bool Process(WorldPacket * packet);
+    //in Map::Update() we do not process player logout!
+    virtual bool ProcessLogout() const { return false; }
+};
+
+//class used to filer only thread-unsafe packets from queue
+//in order to update only be used in World::UpdateSessions()
+class WorldSessionFilter : public PacketFilter
+{
+public:
+    explicit WorldSessionFilter(WorldSession * pSession) : PacketFilter(pSession) {}
+    ~WorldSessionFilter() {}
+
+    virtual bool Process(WorldPacket* packet);
+};
+
 /// Player session in the World
 class WorldSession
 {
@@ -204,7 +241,7 @@ class WorldSession
         void HandleMoveToGraveyard(WorldPacket &recv_data);
 
         void QueuePacket(WorldPacket* new_packet);
-        bool Update(uint32 diff);
+        bool Update(uint32 diff, PacketFilter& updater);
 
         /// Handle the authentication waiting queue (to be completed)
         void SendAuthWaitQue(uint32 position);
@@ -268,9 +305,10 @@ class WorldSession
         bool SendItemInfo(uint32 itemid, WorldPacket data);
         //auction
         void SendAuctionHello(uint64 guid, Creature * unit);
-        void SendAuctionCommandResult(uint32 auctionId, uint32 Action, uint32 ErrorCode, uint32 bidError = 0);
+        void SendAuctionCommandResult(uint32 auctionId, uint32 Action, uint32 ErrorCode, uint64 bidError = 0);
         void SendAuctionBidderNotification(uint32 location, uint32 auctionId, uint64 bidder, uint32 bidSum, uint32 diff, uint32 item_template);
         void SendAuctionOwnerNotification(AuctionEntry * auction);
+        void SendAuctionRemovedNotification(AuctionEntry * auction);
 
         //Item Enchantment
         void SendEnchantmentLog(uint64 Target, uint64 Caster,uint32 ItemID,uint32 SpellID);
@@ -314,7 +352,7 @@ class WorldSession
         }
         void ResetTimeOutTime()
         {
-            m_timeOutTime = sWorld.getIntConfig(CONFIG_SOCKET_TIMEOUTTIME);
+            m_timeOutTime = sWorld->getIntConfig(CONFIG_SOCKET_TIMEOUTTIME);
         }
         bool IsConnectionIdle() const
         {
@@ -657,7 +695,6 @@ class WorldSession
         void HandleChannelBan(WorldPacket& recvPacket);
         void HandleChannelUnban(WorldPacket& recvPacket);
         void HandleChannelAnnouncements(WorldPacket& recvPacket);
-        void HandleChannelModerate(WorldPacket& recvPacket);
         void HandleChannelDeclineInvite(WorldPacket& recvPacket);
         void HandleChannelDisplayListQuery(WorldPacket& recvPacket);
         void HandleGetChannelMemberCount(WorldPacket& recvPacket);
@@ -828,8 +865,9 @@ class WorldSession
         void HandleReadyForAccountDataTimes(WorldPacket& recv_data);
         void HandleQueryQuestsCompleted(WorldPacket& recv_data);
         void HandleQuestPOIQuery(WorldPacket& recv_data);
-        void HandleEjectPasenger(WorldPacket &data);
+        void HandleEjectPassenger(WorldPacket &data);
         void HandleEnterPlayerVehicle(WorldPacket &data);
+        void HandleUpdateProjectilePosition(WorldPacket& recvPacket);
 
     private:
         void ProcessQueryCallbacks();

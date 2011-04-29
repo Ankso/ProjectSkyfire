@@ -235,9 +235,11 @@ DBCStorage <WorldSafeLocsEntry> sWorldSafeLocsStore(WorldSafeLocsEntryfmt);
 
 typedef std::list<std::string> StoreProblemList;
 
+uint32 DBCFileCount = 0;
+
 static bool LoadDBC_assert_print(uint32 fsize,uint32 rsize, const std::string& filename)
 {
-    sLog.outError("Size of '%s' setted by format string (%u) not equal size of C++ structure (%u).",filename.c_str(),fsize,rsize);
+    sLog->outError("Size of '%s' setted by format string (%u) not equal size of C++ structure (%u).",filename.c_str(),fsize,rsize);
 
     // ASSERT must fail after function call
     return false;
@@ -249,7 +251,8 @@ inline void LoadDBC(uint32& availableDbcLocales, StoreProblemList& errlist, DBCS
     // compatibility format and C++ structure sizes
     if(!(DBCFileLoader::GetFormatRecordSize(storage.GetFormat()) == sizeof(T) || LoadDBC_assert_print(DBCFileLoader::GetFormatRecordSize(storage.GetFormat()),sizeof(T),filename)))
         return;
-    
+
+    ++DBCFileCount;
     std::string dbc_filename = dbc_path + filename;
     SqlDbc * sql = NULL;
     if (custom_entries)
@@ -285,8 +288,6 @@ void LoadDBCStores(const std::string& dataPath)
 {
     std::string dbcPath = dataPath+"dbc/";
 
-    const uint32 DBCFilesCount = 118;
-
     StoreProblemList bad_dbc_files;
     uint32 availableDbcLocales = 0xFFFFFFFF;
 
@@ -306,7 +307,7 @@ void LoadDBCStores(const std::string& dataPath)
         }
     }
 
-    LoadDBC(availableDbcLocales,bad_dbc_files,sAchievementStore,         dbcPath,"Achievement.dbc");
+    LoadDBC(availableDbcLocales,bad_dbc_files,sAchievementStore,         dbcPath,"Achievement.dbc"/*, &CustomAchievementfmt, &CustomAchievementIndex*/);
     LoadDBC(availableDbcLocales,bad_dbc_files,sAchievementCriteriaStore, dbcPath,"Achievement_Criteria.dbc");
     LoadDBC(availableDbcLocales,bad_dbc_files,sAreaTriggerStore,         dbcPath,"AreaTrigger.dbc");
     LoadDBC(availableDbcLocales,bad_dbc_files,sArmorLocationStore,       dbcPath,"ArmorLocation.dbc");
@@ -528,20 +529,23 @@ void LoadDBCStores(const std::string& dataPath)
             continue;
 
         SpellDifficultyEntry newEntry;
+        memset(newEntry.SpellID, 0, 4*sizeof(uint32));
         for (int x = 0; x < MAX_DIFFICULTY; ++x)
         {
             if (spellDiff->SpellID[x] <= 0 || !sSpellStore.LookupEntry(spellDiff->SpellID[x]))
             {
                 if (spellDiff->SpellID[x] > 0)//don't show error if spell is <= 0, not all modes have spells and there are unknown negative values
-                    sLog.outDebug("spelldifficulty_dbc: spell %i at field id:%u at spellid%i does not exist in SpellStore (spell.dbc), loaded as 0", spellDiff->SpellID[x], spellDiff->ID, x);
+                    sLog->outDebug("spelldifficulty_dbc: spell %i at field id:%u at spellid%i does not exist in SpellStore (spell.dbc), loaded as 0", spellDiff->SpellID[x], spellDiff->ID, x);
                 newEntry.SpellID[x] = 0;//spell was <= 0 or invalid, set to 0
-            } else newEntry.SpellID[x] = spellDiff->SpellID[x];
+            }
+            else
+                newEntry.SpellID[x] = spellDiff->SpellID[x];
         }
         if (newEntry.SpellID[0] <= 0 || newEntry.SpellID[1] <= 0)//id0-1 must be always set!
             continue;
 
         for (int x = 0; x < MAX_DIFFICULTY; ++x)
-            sSpellMgr.SetSpellDifficultyId(uint32(newEntry.SpellID[x]), spellDiff->ID);
+            sSpellMgr->SetSpellDifficultyId(uint32(newEntry.SpellID[x]), spellDiff->ID);
     }
 
     // create talent spells set
@@ -685,9 +689,9 @@ void LoadDBCStores(const std::string& dataPath)
     LoadDBC(availableDbcLocales,bad_dbc_files,sWorldSafeLocsStore,       dbcPath,"WorldSafeLocs.dbc");
 
     // error checks
-    if (bad_dbc_files.size() >= DBCFilesCount)
+    if (bad_dbc_files.size() >= DBCFileCount)
     {
-        sLog.outError("\nIncorrect DataDir value in worldserver.conf or ALL required *.dbc files (%d) not found by path: %sdbc",DBCFilesCount,dataPath.c_str());
+        sLog->outError("\nIncorrect DataDir value in worldserver.conf or ALL required *.dbc files (%d) not found by path: %sdbc",DBCFileCount,dataPath.c_str());
         exit(1);
     }
     else if (!bad_dbc_files.empty())
@@ -696,7 +700,7 @@ void LoadDBCStores(const std::string& dataPath)
         for (std::list<std::string>::iterator i = bad_dbc_files.begin(); i != bad_dbc_files.end(); ++i)
             str += *i + "\n";
 
-        sLog.outError("\nSome required *.dbc files (%u from %d) not found or not compatible:\n%s",(uint32)bad_dbc_files.size(),DBCFilesCount,str.c_str());
+        sLog->outError("\nSome required *.dbc files (%u from %d) not found or not compatible:\n%s",(uint32)bad_dbc_files.size(),DBCFileCount,str.c_str());
         exit(1);
     }
 
@@ -709,11 +713,11 @@ void LoadDBCStores(const std::string& dataPath)
         !sSpellStore.LookupEntry(96539)            )        // last added spell in 4.0.6a
 
     {
-        sLog.outError("\nYou have _outdated_ DBC files. Please extract correct versions from current using client.");
+        sLog->outError("\nYou have _outdated_ DBC files. Please extract correct versions from current using client.");
         exit(1);
     }
-    sLog.outString();
-    sLog.outString(">> Initialized %d data stores", DBCFilesCount);
+    sLog->outString();
+    sLog->outString(">> Initialized %d data stores", DBCFileCount);
 }
 
 SimpleFactionsList const* GetFactionTeamList(uint32 faction)
@@ -821,8 +825,11 @@ uint32 GetVirtualMapForMapAndZone(uint32 mapid, uint32 zoneId)
 ContentLevels GetContentLevelsForMapAndZone(uint32 mapid, uint32 zoneId)
 {
     mapid = GetVirtualMapForMapAndZone(mapid,zoneId);
-    if (mapid < 2)
+    if (mapid < 2 || mapid == 648 || mapid == 654)
         return CONTENT_1_60;
+
+    if (zoneId == 5034 || zoneId == 4922 || zoneId == 616 || zoneId == 5146 || zoneId == 5042)
+        return CONTENT_81_85;
 
     MapEntry const* mapEntry = sMapStore.LookupEntry(mapid);
     if (!mapEntry)

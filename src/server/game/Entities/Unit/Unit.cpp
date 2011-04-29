@@ -105,7 +105,7 @@ Unit::Unit(): WorldObject(),
 m_movedPlayer(NULL), IsAIEnabled(false), NeedChangeAI(false),
 m_ControlledByPlayer(false), i_AI(NULL), i_disabledAI(NULL), m_procDeep(0),
 m_removedAurasCount(0), i_motionMaster(this), m_ThreatManager(this), m_vehicle(NULL),
-m_vehicleKit(NULL), m_unitTypeMask(UNIT_MASK_NONE), m_HostileRefManager(this)
+m_vehicleKit(NULL), m_unitTypeMask(UNIT_MASK_NONE), m_HostileRefManager(this), m_lastSanctuaryTime(0)
 {
 #ifdef _MSC_VER
 #pragma warning(default:4355)
@@ -141,11 +141,8 @@ m_vehicleKit(NULL), m_unitTypeMask(UNIT_MASK_NONE), m_HostileRefManager(this)
     m_ObjectSlot[0] = m_ObjectSlot[1] = m_ObjectSlot[2] = m_ObjectSlot[3] = 0;
 
     m_auraUpdateIterator = m_ownedAuras.end();
-    m_Visibility = VISIBILITY_ON;
 
     m_interruptMask = 0;
-    m_detectInvisibilityMask = 0;
-    m_invisibilityMask = 0;
     m_transform = 0;
     m_canModifyStats = false;
 
@@ -196,6 +193,8 @@ m_vehicleKit(NULL), m_unitTypeMask(UNIT_MASK_NONE), m_HostileRefManager(this)
 
     m_cleanupDone = false;
     m_duringRemoveFromWorld = false;
+
+    m_serverSideVisibility.SetValue(SERVERSIDE_VISIBILITY_GHOST, GHOST_VISIBILITY_ALIVE);
 }
 
 Unit::~Unit()
@@ -263,7 +262,7 @@ void Unit::Update(uint32 p_time)
     }
 
     //not implemented before 3.0.2
-    //if (!hasUnitState(UNIT_STAT_CASTING))
+    //if (!HasUnitState(UNIT_STAT_CASTING))
     {
         if (uint32 base_att = getAttackTimer(BASE_ATTACK))
             setAttackTimer(BASE_ATTACK, (p_time >= base_att ? 0 : base_att - p_time));
@@ -365,7 +364,7 @@ void Unit::SendMonsterStop(bool on_death)
 
     SendMessageToSet(&data, true);
 
-    clearUnitState(UNIT_STAT_MOVE);
+    ClearUnitState(UNIT_STAT_MOVE);
 }
 
 void Unit::SendMonsterMove(float NewPosX, float NewPosY, float NewPosZ, uint32 Time, Player* player)
@@ -388,7 +387,7 @@ void Unit::SendMonsterMove(float NewPosX, float NewPosY, float NewPosZ, uint32 T
     else
         SendMessageToSet(&data, true);
 
-    addUnitState(UNIT_STAT_MOVE);
+    AddUnitState(UNIT_STAT_MOVE);
 }
 
 void Unit::SendMonsterMove(float NewPosX, float NewPosY, float NewPosZ, uint32 MoveFlags, uint32 time, float speedZ, Player *player)
@@ -423,23 +422,24 @@ void Unit::SendMonsterMove(float NewPosX, float NewPosY, float NewPosZ, uint32 M
 
 void Unit::SendMonsterMoveTransport(Unit *vehicleOwner)
 {
+    // TODO: Turn into BuildMonsterMoveTransport packet and allow certain variables (for npc movement aboard vehicles)
     WorldPacket data(SMSG_MONSTER_MOVE_TRANSPORT, GetPackGUID().size()+vehicleOwner->GetPackGUID().size());
     data.append(GetPackGUID());
     data.append(vehicleOwner->GetPackGUID());
     data << int8(GetTransSeat());
-    data << uint8(0);
+    data << uint8(0);   // unk boolean
     data << GetPositionX() - vehicleOwner->GetPositionX();
     data << GetPositionY() - vehicleOwner->GetPositionY();
     data << GetPositionZ() - vehicleOwner->GetPositionZ();
-    data << uint32(getMSTime());
-    data << uint8(4); // type
-    data << GetTransOffsetO();
+    data << uint32(100);                    // should be an increasing constant that indicates movement packet count
+    data << uint8(SPLINETYPE_FACING_ANGLE); 
+    data << GetTransOffsetO();              // facing angle?
     data << uint32(SPLINEFLAG_TRANSPORT);
-    data << uint32(0);// move time
-    data << uint32(1);// WP count
-    data << float(0);//GetTransOffsetX();
-    data << float(0);//GetTransOffsetY();
-    data << float(0);//GetTransOffsetZ();
+    data << uint32(0);                      // move time
+    data << uint32(1);
+    data << uint32(GetTransOffsetX());
+    data << uint32(GetTransOffsetY());
+    data << uint32(GetTransOffsetZ());
     SendMessageToSet(&data, true);
 }
 
@@ -483,9 +483,9 @@ void Unit::GetRandomContactPoint(const Unit* obj, float &x, float &y, float &z, 
     float combat_reach = GetCombatReach();
     if (combat_reach < 0.1) // sometimes bugged for players
     {
-        //sLog.outError("Unit %u (Type: %u) has invalid combat_reach %f",GetGUIDLow(),GetTypeId(),combat_reach);
+        //sLog->outError("Unit %u (Type: %u) has invalid combat_reach %f",GetGUIDLow(),GetTypeId(),combat_reach);
         //if (GetTypeId() == TYPEID_UNIT)
-        //    sLog.outError("Creature entry %u has invalid combat_reach", this->ToCreature()->GetEntry());
+        //    sLog->outError("Creature entry %u has invalid combat_reach", this->ToCreature()->GetEntry());
         combat_reach = DEFAULT_COMBAT_REACH;
     }
     uint32 attacker_number = getAttackers().size();
@@ -520,12 +520,12 @@ bool Unit::HasAuraTypeWithFamilyFlags(AuraType auraType, uint32 familyName, uint
 
 void Unit::DealDamageMods(Unit *pVictim, uint32 &damage, uint32* absorb)
 {
-    if (!pVictim->isAlive() || pVictim->hasUnitState(UNIT_STAT_UNATTACKABLE) || (pVictim->GetTypeId() == TYPEID_UNIT && pVictim->ToCreature()->IsInEvadeMode()))
+    if (!pVictim->isAlive() || pVictim->HasUnitState(UNIT_STAT_IN_FLIGHT) || (pVictim->HasUnitState(UNIT_STAT_ONVEHICLE) && pVictim->GetVehicleBase() != this) || (pVictim->GetTypeId() == TYPEID_UNIT && pVictim->ToCreature()->IsInEvadeMode()))
     {
-        if (absorb)
-            *absorb += damage;
-        damage = 0;
-        return;
+            if (absorb)
+                *absorb += damage;
+            damage = 0;
+            return;
     }
 
     //You don't lose health from damage taken from another player while in a sanctuary
@@ -630,10 +630,10 @@ uint32 Unit::DealDamage(Unit *pVictim, uint32 damage, CleanDamage const* cleanDa
         return 0;
     }
 
-    sLog.outStaticDebug("DealDamageStart");
+    sLog->outStaticDebug("DealDamageStart");
 
     uint32 health = pVictim->GetHealth();
-    sLog.outDetail("deal dmg:%d to health:%d ",damage,health);
+    sLog->outDetail("deal dmg:%d to health:%d ",damage,health);
 
     // duel ends when player has 1 or less hp
     bool duel_hasEnded = false;
@@ -661,7 +661,7 @@ uint32 Unit::DealDamage(Unit *pVictim, uint32 damage, CleanDamage const* cleanDa
 
     if (pVictim->GetTypeId() == TYPEID_PLAYER)
         pVictim->ToPlayer()->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_HIGHEST_HIT_RECEIVED, damage);
-    else if (!pVictim->IsControlledByPlayer())
+    else if (!pVictim->IsControlledByPlayer() || pVictim->IsVehicle())
     {
         if (!pVictim->ToCreature()->hasLootRecipient())
             pVictim->ToCreature()->SetLootRecipient(this);
@@ -672,7 +672,7 @@ uint32 Unit::DealDamage(Unit *pVictim, uint32 damage, CleanDamage const* cleanDa
 
     if (health <= damage)
     {
-        sLog.outStaticDebug("DealDamage: victim just died");
+        sLog->outStaticDebug("DealDamage: victim just died");
 
         if (pVictim->GetTypeId() == TYPEID_PLAYER)
         {
@@ -687,10 +687,67 @@ uint32 Unit::DealDamage(Unit *pVictim, uint32 damage, CleanDamage const* cleanDa
     }
     else
     {
-        sLog.outStaticDebug("DealDamageAlive");
+        sLog->outStaticDebug("DealDamageAlive");
 
         if (pVictim->GetTypeId() == TYPEID_PLAYER)
             pVictim->ToPlayer()->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_TOTAL_DAMAGE_RECEIVED, damage);
+
+        // Blood Craze
+        if (pVictim->GetTypeId() == TYPEID_PLAYER)
+        {
+            if (pVictim->HasAura(16487)) // Rank 1
+                if (roll_chance_f(10.0f))
+                    pVictim->CastSpell(pVictim, 16488, true);
+
+            if (pVictim->HasAura(16489)) // Rank 2
+                if (roll_chance_f(10.0f))
+                    pVictim->CastSpell(pVictim, 16490, true);
+
+            if (pVictim->HasAura(16492)) // Rank 3
+                if (roll_chance_f(10.0f))
+                    pVictim->CastSpell(pVictim, 16491, true);
+        }
+
+        // Brain Freeze
+        if (GetTypeId() == TYPEID_PLAYER)
+        {
+            if (damagetype == SPELL_DIRECT_DAMAGE )
+            {
+                if(GetSpellSchoolMask(spellProto) == SPELL_SCHOOL_MASK_FROST)
+                {       
+                    if (this->ToPlayer()->HasAura(44546))
+                        if (roll_chance_f(5.0f))
+                            this->CastSpell(this, 57761, true);
+
+                    if (this->ToPlayer()->HasAura(44548))
+                        if (roll_chance_f(10.0f))
+                            this->CastSpell(this, 57761, true);
+
+                    if (this->ToPlayer()->HasAura(44549))
+                        if (roll_chance_f(15.0f))
+                            this->CastSpell(this, 57761, true);
+                }
+            }
+        }
+
+        // Maelstrom Weapon
+        if (GetTypeId() == TYPEID_PLAYER)
+        {
+            if (damagetype == DIRECT_DAMAGE )
+            {
+                if (this->ToPlayer()->HasAura(51528))
+                    if (roll_chance_f(10.0f))
+                        this->CastSpell(this, 53817, true);
+
+                if (this->ToPlayer()->HasAura(51529))
+                    if (roll_chance_f(20.0f))
+                        this->CastSpell(this, 53817, true);
+
+                if (this->ToPlayer()->HasAura(51530))
+                    if (roll_chance_f(30.0f))
+                        this->CastSpell(this, 53817, true);
+            }
+        }
 
         pVictim->ModifyHealth(- (int32)damage);
 
@@ -707,7 +764,7 @@ uint32 Unit::DealDamage(Unit *pVictim, uint32 damage, CleanDamage const* cleanDa
         else                                                // victim is a player
         {
             // random durability for items (HIT TAKEN)
-            if (roll_chance_f(sWorld.getRate(RATE_DURABILITY_LOSS_DAMAGE)))
+            if (roll_chance_f(sWorld->getRate(RATE_DURABILITY_LOSS_DAMAGE)))
             {
                 EquipmentSlots slot = EquipmentSlots(urand(0,EQUIPMENT_SLOT_END-1));
                 pVictim->ToPlayer()->DurabilityPointLossForEquipSlot(slot);
@@ -724,7 +781,7 @@ uint32 Unit::DealDamage(Unit *pVictim, uint32 damage, CleanDamage const* cleanDa
         if (GetTypeId() == TYPEID_PLAYER)
         {
             // random durability for items (HIT DONE)
-            if (roll_chance_f(sWorld.getRate(RATE_DURABILITY_LOSS_DAMAGE)))
+            if (roll_chance_f(sWorld->getRate(RATE_DURABILITY_LOSS_DAMAGE)))
             {
                 EquipmentSlots slot = EquipmentSlots(urand(0,EQUIPMENT_SLOT_END-1));
                 this->ToPlayer()->DurabilityPointLossForEquipSlot(slot);
@@ -780,7 +837,7 @@ uint32 Unit::DealDamage(Unit *pVictim, uint32 damage, CleanDamage const* cleanDa
         }
     }
 
-    sLog.outStaticDebug("DealDamageEnd returned %d damage", damage);
+    sLog->outStaticDebug("DealDamageEnd returned %d damage", damage);
 
     return damage;
 }
@@ -798,7 +855,7 @@ void Unit::CastSpell(Unit* Victim, uint32 spellId, bool triggered, Item *castIte
 
     if (!spellInfo)
     {
-        sLog.outError("CastSpell: unknown spell id %i by caster: %s %u)", spellId,(GetTypeId() == TYPEID_PLAYER ? "player (GUID:" : "creature (Entry:"),(GetTypeId() == TYPEID_PLAYER ? GetGUIDLow() : GetEntry()));
+        sLog->outError("CastSpell: unknown spell id %i by caster: %s %u)", spellId,(GetTypeId() == TYPEID_PLAYER ? "player (GUID:" : "creature (Entry:"),(GetTypeId() == TYPEID_PLAYER ? GetGUIDLow() : GetEntry()));
         return;
     }
 
@@ -809,7 +866,7 @@ void Unit::CastSpell(Unit* Victim,SpellEntry const *spellInfo, bool triggered, I
 {
     if (!spellInfo)
     {
-        sLog.outError("CastSpell: unknown spell by caster: %s %u)", (GetTypeId() == TYPEID_PLAYER ? "player (GUID:" : "creature (Entry:"),(GetTypeId() == TYPEID_PLAYER ? GetGUIDLow() : GetEntry()));
+        sLog->outError("CastSpell: unknown spell by caster: %s %u)", (GetTypeId() == TYPEID_PLAYER ? "player (GUID:" : "creature (Entry:"),(GetTypeId() == TYPEID_PLAYER ? GetGUIDLow() : GetEntry()));
         return;
     }
 
@@ -821,7 +878,7 @@ void Unit::CastSpell(Unit* Victim,SpellEntry const *spellInfo, bool triggered, I
     targets.setUnitTarget(Victim);
 
     if (castItem)
-        sLog.outStaticDebug("WORLD: cast Item spellId - %i", spellInfo->Id);
+        sLog->outStaticDebug("WORLD: cast Item spellId - %i", spellInfo->Id);
 
     if (!originalCaster && triggeredByAura)
         originalCaster = triggeredByAura->GetCasterGUID();
@@ -856,7 +913,7 @@ void Unit::CastCustomSpell(uint32 spellId, CustomSpellValues const &value, Unit*
     SpellEntry const *spellInfo = sSpellStore.LookupEntry(spellId);
     if (!spellInfo)
     {
-        sLog.outError("CastSpell: unknown spell id %i by caster: %s %u)", spellId,(GetTypeId() == TYPEID_PLAYER ? "player (GUID:" : "creature (Entry:"),(GetTypeId() == TYPEID_PLAYER ? GetGUIDLow() : GetEntry()));
+        sLog->outError("CastSpell: unknown spell id %i by caster: %s %u)", spellId,(GetTypeId() == TYPEID_PLAYER ? "player (GUID:" : "creature (Entry:"),(GetTypeId() == TYPEID_PLAYER ? GetGUIDLow() : GetEntry()));
         return;
     }
 
@@ -870,7 +927,7 @@ void Unit::CastCustomSpell(uint32 spellId, CustomSpellValues const &value, Unit*
 
     if (castItem)
     {
-        sLog.outStaticDebug("WORLD: cast Item spellId - %i", spellInfo->Id);
+        sLog->outStaticDebug("WORLD: cast Item spellId - %i", spellInfo->Id);
         spell->m_CastItem = castItem;
     }
 
@@ -887,12 +944,12 @@ void Unit::CastSpell(float x, float y, float z, uint32 spellId, bool triggered, 
 
     if (!spellInfo)
     {
-        sLog.outError("CastSpell(x,y,z): unknown spell id %i by caster: %s %u)", spellId,(GetTypeId() == TYPEID_PLAYER ? "player (GUID:" : "creature (Entry:"),(GetTypeId() == TYPEID_PLAYER ? GetGUIDLow() : GetEntry()));
+        sLog->outError("CastSpell(x,y,z): unknown spell id %i by caster: %s %u)", spellId,(GetTypeId() == TYPEID_PLAYER ? "player (GUID:" : "creature (Entry:"),(GetTypeId() == TYPEID_PLAYER ? GetGUIDLow() : GetEntry()));
         return;
     }
 
     if (castItem)
-        sLog.outStaticDebug("WORLD: cast Item spellId - %i", spellInfo->Id);
+        sLog->outStaticDebug("WORLD: cast Item spellId - %i", spellInfo->Id);
 
     if (!originalCaster && triggeredByAura)
         originalCaster = triggeredByAura->GetCasterGUID();
@@ -917,18 +974,18 @@ void Unit::CastSpell(GameObject *go, uint32 spellId, bool triggered, Item *castI
 
     if (!spellInfo)
     {
-        sLog.outError("CastSpell(x,y,z): unknown spell id %i by caster: %s %u)", spellId,(GetTypeId() == TYPEID_PLAYER ? "player (GUID:" : "creature (Entry:"),(GetTypeId() == TYPEID_PLAYER ? GetGUIDLow() : GetEntry()));
+        sLog->outError("CastSpell(x,y,z): unknown spell id %i by caster: %s %u)", spellId,(GetTypeId() == TYPEID_PLAYER ? "player (GUID:" : "creature (Entry:"),(GetTypeId() == TYPEID_PLAYER ? GetGUIDLow() : GetEntry()));
         return;
     }
 
     if (!(spellInfo->Targets & (TARGET_FLAG_OBJECT | TARGET_FLAG_OBJECT_CASTER)))
     {
-        sLog.outError("CastSpell: spell id %i by caster: %s %u) is not gameobject spell", spellId,(GetTypeId() == TYPEID_PLAYER ? "player (GUID:" : "creature (Entry:"),(GetTypeId() == TYPEID_PLAYER ? GetGUIDLow() : GetEntry()));
+        sLog->outError("CastSpell: spell id %i by caster: %s %u) is not gameobject spell", spellId,(GetTypeId() == TYPEID_PLAYER ? "player (GUID:" : "creature (Entry:"),(GetTypeId() == TYPEID_PLAYER ? GetGUIDLow() : GetEntry()));
         return;
     }
 
     if (castItem)
-        sLog.outStaticDebug("WORLD: cast Item spellId - %i", spellInfo->Id);
+        sLog->outStaticDebug("WORLD: cast Item spellId - %i", spellInfo->Id);
 
     if (!originalCaster && triggeredByAura)
         originalCaster = triggeredByAura->GetCasterGUID();
@@ -946,7 +1003,7 @@ uint32 Unit::SpellNonMeleeDamageLog(Unit *pVictim, uint32 spellID, uint32 damage
 {
     SpellEntry const *spellInfo = sSpellStore.LookupEntry(spellID);
     SpellNonMeleeDamage damageInfo(this, pVictim, spellInfo->Id, spellInfo->SchoolMask);
-    damage = SpellDamageBonus(pVictim, spellInfo, damage, SPELL_DIRECT_DAMAGE);
+    damage = SpellDamageBonus(pVictim, spellInfo, 0, damage, SPELL_DIRECT_DAMAGE);
     CalculateSpellDamageTaken(&damageInfo, damage, spellInfo);
     DealDamageMods(damageInfo.target,damageInfo.damage,&damageInfo.absorb);
     SendSpellNonMeleeDamageLog(&damageInfo);
@@ -959,7 +1016,7 @@ void Unit::CalculateSpellDamageTaken(SpellNonMeleeDamage *damageInfo, int32 dama
     if (damage < 0)
         return;
 
-    if (spellInfo->AttributesEx4 & SPELL_ATTR_EX4_FIXED_DAMAGE)
+    if (spellInfo->AttributesEx4 & SPELL_ATTR4_FIXED_DAMAGE)
     {
         damageInfo->damage = damage;
         return;
@@ -1070,13 +1127,13 @@ void Unit::DealSpellDamage(SpellNonMeleeDamage *damageInfo, bool durabilityLoss)
     if (!pVictim)
         return;
 
-    if (!pVictim->isAlive() || pVictim->hasUnitState(UNIT_STAT_UNATTACKABLE) || (pVictim->GetTypeId() == TYPEID_UNIT && pVictim->ToCreature()->IsInEvadeMode()))
-        return;
+    if (!pVictim->isAlive() || pVictim->HasUnitState(UNIT_STAT_IN_FLIGHT) || (pVictim->HasUnitState(UNIT_STAT_ONVEHICLE) && pVictim->GetVehicleBase() != this) || (pVictim->GetTypeId() == TYPEID_UNIT && pVictim->ToCreature()->IsInEvadeMode()))
+    return;
 
     SpellEntry const *spellProto = sSpellStore.LookupEntry(damageInfo->SpellID);
     if (spellProto == NULL)
     {
-        sLog.outDebug("Unit::DealSpellDamage have wrong damageInfo->SpellID: %u", damageInfo->SpellID);
+        sLog->outDebug("Unit::DealSpellDamage have wrong damageInfo->SpellID: %u", damageInfo->SpellID);
         return;
     }
 
@@ -1304,8 +1361,8 @@ void Unit::DealMeleeDamage(CalcDamageInfo *damageInfo, bool durabilityLoss)
 {
     Unit *pVictim = damageInfo->target;
 
-    if (!pVictim->isAlive() || pVictim->hasUnitState(UNIT_STAT_UNATTACKABLE) || (pVictim->GetTypeId() == TYPEID_UNIT && pVictim->ToCreature()->IsInEvadeMode()))
-        return;
+    if (!pVictim->isAlive() || pVictim->HasUnitState(UNIT_STAT_IN_FLIGHT) || (pVictim->HasUnitState(UNIT_STAT_ONVEHICLE) && pVictim->GetVehicleBase() != this) || (pVictim->GetTypeId() == TYPEID_UNIT && pVictim->ToCreature()->IsInEvadeMode()))
+    return;
 
     //You don't lose health from damage taken from another player while in a sanctuary
     //You still see it in the combat log though
@@ -1448,7 +1505,7 @@ bool Unit::IsDamageReducedByArmor(SpellSchoolMask schoolMask, SpellEntry const *
     if (spellInfo)
     {
         // there are spells with no specific attribute but they have "ignores armor" in tooltip
-        if (sSpellMgr.GetSpellCustomAttr(spellInfo->Id) & SPELL_ATTR_CU_IGNORE_ARMOR)
+        if (sSpellMgr->GetSpellCustomAttr(spellInfo->Id) & SPELL_ATTR0_CU_IGNORE_ARMOR)
             return false;
 
         // bleeding effects are not reduced by armor
@@ -1887,7 +1944,7 @@ void Unit::CalcHealAbsorb(Unit *pVictim, const SpellEntry *healSpell, uint32 &he
 
 void Unit::AttackerStateUpdate (Unit *pVictim, WeaponAttackType attType, bool extra)
 {
-    if (hasUnitState(UNIT_STAT_CANNOT_AUTOATTACK) || HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PACIFIED))
+    if (HasUnitState(UNIT_STAT_CANNOT_AUTOATTACK) || HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PACIFIED))
         return;
 
     if (!pVictim->isAlive())
@@ -1925,10 +1982,10 @@ void Unit::AttackerStateUpdate (Unit *pVictim, WeaponAttackType attType, bool ex
         DealMeleeDamage(&damageInfo,true);
 
         if (GetTypeId() == TYPEID_PLAYER)
-            sLog.outStaticDebug("AttackerStateUpdate: (Player) %u attacked %u (TypeId: %u) for %u dmg, absorbed %u, blocked %u, resisted %u.",
+            sLog->outStaticDebug("AttackerStateUpdate: (Player) %u attacked %u (TypeId: %u) for %u dmg, absorbed %u, blocked %u, resisted %u.",
                 GetGUIDLow(), pVictim->GetGUIDLow(), pVictim->GetTypeId(), damageInfo.damage, damageInfo.absorb, damageInfo.blocked_amount, damageInfo.resist);
         else
-            sLog.outStaticDebug("AttackerStateUpdate: (NPC)    %u attacked %u (TypeId: %u) for %u dmg, absorbed %u, blocked %u, resisted %u.",
+            sLog->outStaticDebug("AttackerStateUpdate: (NPC)    %u attacked %u (TypeId: %u) for %u dmg, absorbed %u, blocked %u, resisted %u.",
                 GetGUIDLow(), pVictim->GetGUIDLow(), pVictim->GetTypeId(), damageInfo.damage, damageInfo.absorb, damageInfo.blocked_amount, damageInfo.resist);
     }
 
@@ -1960,7 +2017,7 @@ MeleeHitOutcome Unit::RollMeleeOutcomeAgainst(const Unit *pVictim, WeaponAttackT
     float parry_chance = pVictim->GetUnitParryChance();
 
     // Useful if want to specify crit & miss chances for melee, else it could be removed
-    sLog.outStaticDebug("MELEE OUTCOME: miss %f crit %f dodge %f parry %f block %f", miss_chance,crit_chance,dodge_chance,parry_chance,block_chance);
+    sLog->outStaticDebug("MELEE OUTCOME: miss %f crit %f dodge %f parry %f block %f", miss_chance,crit_chance,dodge_chance,parry_chance,block_chance);
 
     return RollMeleeOutcomeAgainst(pVictim, attType, int32(crit_chance*100), int32(miss_chance*100), int32(dodge_chance*100),int32(parry_chance*100),int32(block_chance*100));
 }
@@ -1981,22 +2038,22 @@ MeleeHitOutcome Unit::RollMeleeOutcomeAgainst (const Unit *pVictim, WeaponAttack
     int32    sum = 0, tmp = 0;
     int32    roll = urand (0, 10000);
 
-    sLog.outStaticDebug ("RollMeleeOutcomeAgainst: skill bonus of %d for attacker", skillBonus);
-    sLog.outStaticDebug ("RollMeleeOutcomeAgainst: rolled %d, miss %d, dodge %d, parry %d, block %d, crit %d",
+    sLog->outStaticDebug ("RollMeleeOutcomeAgainst: skill bonus of %d for attacker", skillBonus);
+    sLog->outStaticDebug ("RollMeleeOutcomeAgainst: rolled %d, miss %d, dodge %d, parry %d, block %d, crit %d",
         roll, miss_chance, dodge_chance, parry_chance, block_chance, crit_chance);
 
     tmp = miss_chance;
 
     if (tmp > 0 && roll < (sum += tmp))
     {
-        sLog.outStaticDebug ("RollMeleeOutcomeAgainst: MISS");
+        sLog->outStaticDebug ("RollMeleeOutcomeAgainst: MISS");
         return MELEE_HIT_MISS;
     }
 
     // always crit against a sitting target (except 0 crit chance)
     if (pVictim->GetTypeId() == TYPEID_PLAYER && crit_chance > 0 && !pVictim->IsStandState())
     {
-        sLog.outStaticDebug ("RollMeleeOutcomeAgainst: CRIT (sitting victim)");
+        sLog->outStaticDebug ("RollMeleeOutcomeAgainst: CRIT (sitting victim)");
         return MELEE_HIT_CRIT;
     }
 
@@ -2005,7 +2062,7 @@ MeleeHitOutcome Unit::RollMeleeOutcomeAgainst (const Unit *pVictim, WeaponAttack
     // only players can't dodge if attacker is behind
     if (pVictim->GetTypeId() == TYPEID_PLAYER && !pVictim->HasInArc(M_PI,this) && !pVictim->HasAuraType(SPELL_AURA_IGNORE_HIT_DIRECTION))
     {
-        sLog.outStaticDebug ("RollMeleeOutcomeAgainst: attack came from behind and victim was a player.");
+        sLog->outStaticDebug ("RollMeleeOutcomeAgainst: attack came from behind and victim was a player.");
     }
     else
     {
@@ -2024,7 +2081,7 @@ MeleeHitOutcome Unit::RollMeleeOutcomeAgainst (const Unit *pVictim, WeaponAttack
             && ((tmp -= skillBonus) > 0)
             && roll < (sum += tmp))
         {
-            sLog.outStaticDebug ("RollMeleeOutcomeAgainst: DODGE <%d, %d)", sum-tmp, sum);
+            sLog->outStaticDebug ("RollMeleeOutcomeAgainst: DODGE <%d, %d)", sum-tmp, sum);
             return MELEE_HIT_DODGE;
         }
     }
@@ -2033,7 +2090,7 @@ MeleeHitOutcome Unit::RollMeleeOutcomeAgainst (const Unit *pVictim, WeaponAttack
 
     // check if attack comes from behind, nobody can parry or block if attacker is behind
     if (!pVictim->HasInArc(M_PI, this) && !pVictim->HasAuraType(SPELL_AURA_IGNORE_HIT_DIRECTION))
-        sLog.outStaticDebug ("RollMeleeOutcomeAgainst: attack came from behind.");
+        sLog->outStaticDebug ("RollMeleeOutcomeAgainst: attack came from behind.");
     else
     {
         // Reduce parry chance by attacker expertise rating
@@ -2049,7 +2106,7 @@ MeleeHitOutcome Unit::RollMeleeOutcomeAgainst (const Unit *pVictim, WeaponAttack
                 && (tmp2 -= skillBonus) > 0
                 && roll < (sum += tmp2))
             {
-                sLog.outStaticDebug ("RollMeleeOutcomeAgainst: PARRY <%d, %d)", sum-tmp2, sum);
+                sLog->outStaticDebug ("RollMeleeOutcomeAgainst: PARRY <%d, %d)", sum-tmp2, sum);
                 return MELEE_HIT_PARRY;
             }
         }
@@ -2061,7 +2118,7 @@ MeleeHitOutcome Unit::RollMeleeOutcomeAgainst (const Unit *pVictim, WeaponAttack
                 && (tmp -= skillBonus) > 0
                 && roll < (sum += tmp))
             {
-                sLog.outStaticDebug ("RollMeleeOutcomeAgainst: BLOCK <%d, %d)", sum-tmp, sum);
+                sLog->outStaticDebug ("RollMeleeOutcomeAgainst: BLOCK <%d, %d)", sum-tmp, sum);
                 return MELEE_HIT_BLOCK;
             }
         }
@@ -2072,9 +2129,9 @@ MeleeHitOutcome Unit::RollMeleeOutcomeAgainst (const Unit *pVictim, WeaponAttack
 
     if (tmp > 0 && roll < (sum += tmp))
     {
-        sLog.outStaticDebug ("RollMeleeOutcomeAgainst: CRIT <%d, %d)", sum-tmp, sum);
+        sLog->outStaticDebug ("RollMeleeOutcomeAgainst: CRIT <%d, %d)", sum-tmp, sum);
         if (GetTypeId() == TYPEID_UNIT && (this->ToCreature()->GetCreatureInfo()->flags_extra & CREATURE_FLAG_EXTRA_NO_CRIT))
-            sLog.outStaticDebug ("RollMeleeOutcomeAgainst: CRIT DISABLED)");
+            sLog->outStaticDebug ("RollMeleeOutcomeAgainst: CRIT DISABLED)");
         else
             return MELEE_HIT_CRIT;
     }
@@ -2094,7 +2151,7 @@ MeleeHitOutcome Unit::RollMeleeOutcomeAgainst (const Unit *pVictim, WeaponAttack
         tmp = tmp > 4000 ? 4000 : tmp;
         if (roll < (sum += tmp))
         {
-            sLog.outStaticDebug ("RollMeleeOutcomeAgainst: GLANCING <%d, %d)", sum-4000, sum);
+            sLog->outStaticDebug ("RollMeleeOutcomeAgainst: GLANCING <%d, %d)", sum-4000, sum);
             return MELEE_HIT_GLANCING;
         }
     }
@@ -2118,13 +2175,13 @@ MeleeHitOutcome Unit::RollMeleeOutcomeAgainst (const Unit *pVictim, WeaponAttack
             tmp = tmp * 200 - 1500;
             if (roll < (sum += tmp))
             {
-                sLog.outStaticDebug ("RollMeleeOutcomeAgainst: CRUSHING <%d, %d)", sum-tmp, sum);
+                sLog->outStaticDebug ("RollMeleeOutcomeAgainst: CRUSHING <%d, %d)", sum-tmp, sum);
                 return MELEE_HIT_CRUSHING;
             }
         }
     }
 
-    sLog.outStaticDebug ("RollMeleeOutcomeAgainst: NORMAL");
+    sLog->outStaticDebug ("RollMeleeOutcomeAgainst: NORMAL");
     return MELEE_HIT_NORMAL;
 }
 
@@ -2190,7 +2247,7 @@ void Unit::SendMeleeAttackStart(Unit* pVictim)
     data << uint64(pVictim->GetGUID());
 
     SendMessageToSet(&data, true);
-    sLog.outStaticDebug("WORLD: Sent SMSG_ATTACKSTART");
+    sLog->outStaticDebug("WORLD: Sent SMSG_ATTACKSTART");
 }
 
 void Unit::SendMeleeAttackStop(Unit* victim)
@@ -2203,7 +2260,7 @@ void Unit::SendMeleeAttackStop(Unit* victim)
     data.append(victim->GetPackGUID());                     // can be 0x00...
     data << uint32(0);                                      // can be 0x1
     SendMessageToSet(&data, true);
-    sLog.outDetail("%s %u stopped attacking %s %u", (GetTypeId() == TYPEID_PLAYER ? "player" : "creature"), GetGUIDLow(), (victim->GetTypeId() == TYPEID_PLAYER ? "player" : "creature"),victim->GetGUIDLow());
+    sLog->outDetail("%s %u stopped attacking %s %u", (GetTypeId() == TYPEID_PLAYER ? "player" : "creature"), GetGUIDLow(), (victim->GetTypeId() == TYPEID_PLAYER ? "player" : "creature"),victim->GetGUIDLow());
 }
 
 bool Unit::isSpellBlocked(Unit *pVictim, SpellEntry const * /*spellProto*/, WeaponAttackType attackType)
@@ -2299,10 +2356,10 @@ SpellMissInfo Unit::MeleeSpellHitResult(Unit *pVictim, SpellEntry const *spell)
 
     bool canDodge = true;
     bool canParry = true;
-    bool canBlock = spell->AttributesEx3 & SPELL_ATTR_EX3_BLOCKABLE_SPELL;
+    bool canBlock = spell->AttributesEx3 & SPELL_ATTR3_BLOCKABLE_SPELL;
 
     // Same spells cannot be parry/dodge
-    if (spell->Attributes & SPELL_ATTR_IMPOSSIBLE_DODGE_PARRY_BLOCK)
+    if (spell->Attributes & SPELL_ATTR0_IMPOSSIBLE_DODGE_PARRY_BLOCK)
         return SPELL_MISS_NONE;
 
     // Chance resist mechanic
@@ -2357,7 +2414,7 @@ SpellMissInfo Unit::MeleeSpellHitResult(Unit *pVictim, SpellEntry const *spell)
             case MELEE_HIT_BLOCK: canBlock = false; break;
             case MELEE_HIT_PARRY: canParry = false; break;
             default:
-                sLog.outStaticDebug("Spell %u SPELL_AURA_IGNORE_COMBAT_RESULT have unhandled state %d", (*i)->GetId(), (*i)->GetMiscValue());
+                sLog->outStaticDebug("Spell %u SPELL_AURA_IGNORE_COMBAT_RESULT have unhandled state %d", (*i)->GetId(), (*i)->GetMiscValue());
                 break;
         }
     }
@@ -2578,7 +2635,7 @@ uint32 Unit::GetDefenseSkillValue(Unit const* target) const
 
 float Unit::GetUnitDodgeChance() const
 {
-    if (IsNonMeleeSpellCasted(false) || hasUnitState(UNIT_STAT_STUNNED))
+    if (IsNonMeleeSpellCasted(false) || HasUnitState(UNIT_STAT_STUNNED))
         return 0.0f;
 
     if (GetTypeId() == TYPEID_PLAYER)
@@ -2598,7 +2655,7 @@ float Unit::GetUnitDodgeChance() const
 
 float Unit::GetUnitParryChance() const
 {
-    if (IsNonMeleeSpellCasted(false) || hasUnitState(UNIT_STAT_STUNNED))
+    if (IsNonMeleeSpellCasted(false) || HasUnitState(UNIT_STAT_STUNNED))
         return 0.0f;
 
     float chance = 0.0f;
@@ -2630,7 +2687,7 @@ float Unit::GetUnitParryChance() const
 
 float Unit::GetUnitBlockChance() const
 {
-    if (IsNonMeleeSpellCasted(false) || hasUnitState(UNIT_STAT_STUNNED))
+    if (IsNonMeleeSpellCasted(false) || HasUnitState(UNIT_STAT_STUNNED))
         return 0.0f;
 
     if (GetTypeId() == TYPEID_PLAYER)
@@ -2880,7 +2937,7 @@ void Unit::SetCurrentCastedSpell(Spell * pSpell)
                     InterruptSpell(CURRENT_AUTOREPEAT_SPELL);
                 m_AutoRepeatFirstCast = true;
             }
-            addUnitState(UNIT_STAT_CASTING);
+            AddUnitState(UNIT_STAT_CASTING);
         } break;
 
         case CURRENT_CHANNELED_SPELL:
@@ -2893,7 +2950,7 @@ void Unit::SetCurrentCastedSpell(Spell * pSpell)
             if (m_currentSpells[CURRENT_AUTOREPEAT_SPELL] &&
                 m_currentSpells[CURRENT_AUTOREPEAT_SPELL]->m_spellInfo->Id != 75)
                 InterruptSpell(CURRENT_AUTOREPEAT_SPELL);
-            addUnitState(UNIT_STAT_CASTING);
+            AddUnitState(UNIT_STAT_CASTING);
         } break;
 
         case CURRENT_AUTOREPEAT_SPELL:
@@ -2930,7 +2987,7 @@ void Unit::InterruptSpell(CurrentSpellTypes spellType, bool withDelayed, bool wi
 {
     ASSERT(spellType < CURRENT_MAX_SPELL);
 
-    //sLog.outDebug("Interrupt spell for unit %u.", GetEntry());
+    //sLog->outDebug("Interrupt spell for unit %u.", GetEntry());
     Spell *spell = m_currentSpells[spellType];
     if (spell
         && (withDelayed || spell->getState() != SPELL_STATE_DELAYED)
@@ -2981,14 +3038,14 @@ bool Unit::IsNonMeleeSpellCasted(bool withDelayed, bool skipChanneled, bool skip
         (m_currentSpells[CURRENT_GENERIC_SPELL]->getState() != SPELL_STATE_FINISHED) &&
         (withDelayed || m_currentSpells[CURRENT_GENERIC_SPELL]->getState() != SPELL_STATE_DELAYED))
     {
-        if (!isAutoshoot || !(m_currentSpells[CURRENT_GENERIC_SPELL]->m_spellInfo->AttributesEx2 & SPELL_ATTR_EX2_NOT_RESET_AUTO_ACTIONS))
+        if (!isAutoshoot || !(m_currentSpells[CURRENT_GENERIC_SPELL]->m_spellInfo->AttributesEx2 & SPELL_ATTR2_NOT_RESET_AUTO_ACTIONS))
             return(true);
     }
     // channeled spells may be delayed, but they are still considered casted
     else if (!skipChanneled && m_currentSpells[CURRENT_CHANNELED_SPELL] &&
         (m_currentSpells[CURRENT_CHANNELED_SPELL]->getState() != SPELL_STATE_FINISHED))
     {
-        if (!isAutoshoot || !(m_currentSpells[CURRENT_CHANNELED_SPELL]->m_spellInfo->AttributesEx2 & SPELL_ATTR_EX2_NOT_RESET_AUTO_ACTIONS))
+        if (!isAutoshoot || !(m_currentSpells[CURRENT_CHANNELED_SPELL]->m_spellInfo->AttributesEx2 & SPELL_ATTR2_NOT_RESET_AUTO_ACTIONS))
             return(true);
     }
     // autorepeat spells may be finished or delayed, but they are still considered casted
@@ -3095,7 +3152,7 @@ void Unit::_AddAura(UnitAura * aura, Unit * caster)
     if (!aura->IsPassive() && aura->GetId() != 44413)
     {
         // find current aura from spell and change it's stackamount
-        if (Aura * foundAura = GetOwnedAura(aura->GetId(), aura->GetCasterGUID(), (sSpellMgr.GetSpellCustomAttr(aura->GetId()) & SPELL_ATTR_CU_ENCHANT_PROC) ? aura->GetCastItemGUID() : 0, 0, aura))
+        if (Aura * foundAura = GetOwnedAura(aura->GetId(), aura->GetCasterGUID(), (sSpellMgr->GetSpellCustomAttr(aura->GetId()) & SPELL_ATTR0_CU_ENCHANT_PROC) ? aura->GetCastItemGUID() : 0, 0, aura))
         {
             if (aura->GetSpellProto()->StackAmount)
             {
@@ -3237,7 +3294,7 @@ void Unit::_UnapplyAura(AuraApplicationMap::iterator &i, AuraRemoveMode removeMo
     ASSERT(aurApp->GetTarget() == this);
     aurApp->SetRemoveMode(removeMode);
     Aura * aura = aurApp->GetBase();
-    sLog.outDebug("Aura %u now is remove mode %d", aura->GetId(), removeMode);
+    sLog->outDebug("Aura %u now is remove mode %d", aura->GetId(), removeMode);
 
     // dead loop is killing the server probably
     ASSERT(m_removedAurasCount < 0xFFFFFFFF);
@@ -3408,7 +3465,7 @@ bool Unit::_IsNoStackAuraDueToAura(Aura * appliedAura, Aura * existingAura) cons
             return false;
 
         // passive non-stackable spells not stackable only with another rank of same spell
-        if (!sSpellMgr.IsRankSpellDueToSpell(spellProto, i_spellId))
+        if (!sSpellMgr->IsRankSpellDueToSpell(spellProto, i_spellId))
             return false;
     }
 
@@ -3428,7 +3485,7 @@ bool Unit::_IsNoStackAuraDueToAura(Aura * appliedAura, Aura * existingAura) cons
     if (is_triggered_by_spell)
         return false;
 
-    if (sSpellMgr.CanAurasStack(appliedAura, existingAura, sameCaster))
+    if (sSpellMgr->CanAurasStack(appliedAura, existingAura, sameCaster))
         return false;
     return true;
 }
@@ -3603,7 +3660,7 @@ void Unit::RemoveAurasDueToSpellByDispel(uint32 spellId, uint64 casterGUID, Unit
         Aura * aura = iter->second;
         if (aura->GetCasterGUID() == casterGUID)
         {
-            if (aura->GetSpellProto()->AttributesEx7 & SPELL_ATTR_EX7_DISPEL_CHARGES)
+            if (aura->GetSpellProto()->AttributesEx7 & SPELL_ATTR7_DISPEL_CHARGES)
                 aura->DropCharge();
             else
                 RemoveAuraFromStack(iter, AURA_REMOVE_BY_ENEMY_SPELL);
@@ -3640,7 +3697,7 @@ void Unit::RemoveAurasDueToSpellByDispel(uint32 spellId, uint64 casterGUID, Unit
                                 triggeredSpellId = 64694;
                                 break;
                             default:
-                                sLog.outError("Aura::HandleAuraSpecificMods: Unknown rank of Lava Flows (%d) found", aurEff->GetId());
+                                sLog->outError("Aura::HandleAuraSpecificMods: Unknown rank of Lava Flows (%d) found", aurEff->GetId());
                         }
                     }
                     if (triggeredSpellId)
@@ -3682,7 +3739,7 @@ void Unit::RemoveAurasDueToSpellBySteal(uint32 spellId, uint64 casterGUID, Unit 
                 }
             }
 
-            bool stealCharge = aura->GetSpellProto()->AttributesEx7 & SPELL_ATTR_EX7_DISPEL_CHARGES;
+            bool stealCharge = aura->GetSpellProto()->AttributesEx7 & SPELL_ATTR7_DISPEL_CHARGES;
 
             if (stealCharge)
                 aura->DropCharge();
@@ -3932,9 +3989,9 @@ void Unit::RemoveArenaAuras(bool onleave)
     {
         AuraApplication const * aurApp = iter->second;
         Aura const * aura = aurApp->GetBase();
-        if (!(aura->GetSpellProto()->AttributesEx4 & SPELL_ATTR_EX4_UNK21) // don't remove stances, shadowform, pally/hunter auras
+        if (!(aura->GetSpellProto()->AttributesEx4 & SPELL_ATTR4_UNK21) // don't remove stances, shadowform, pally/hunter auras
             && !aura->IsPassive()                               // don't remove passive auras
-            && (!(aura->GetSpellProto()->Attributes & SPELL_ATTR_UNAFFECTED_BY_INVULNERABILITY) || !(aura->GetSpellProto()->Attributes & SPELL_ATTR_UNK8))   // not unaffected by invulnerability auras or not having that unknown flag (that seemed the most probable)
+            && (!(aura->GetSpellProto()->Attributes & SPELL_ATTR0_UNAFFECTED_BY_INVULNERABILITY) || !(aura->GetSpellProto()->Attributes & SPELL_ATTR0_UNK8))   // not unaffected by invulnerability auras or not having that unknown flag (that seemed the most probable)
             && (aurApp->IsPositive() ^ onleave))                   // remove positive buffs on enter, negative buffs on leave
             RemoveAura(iter);
         else
@@ -4000,7 +4057,7 @@ void Unit::DelayOwnedAuras(uint32 spellId, uint64 caster, int32 delaytime)
 
             // update for out of range group members (on 1 slot use)
             aura->SetNeedClientUpdateForTargets();
-            sLog.outDebug("Aura %u partially interrupted on unit %u, new duration: %u ms",aura->GetId() , GetGUIDLow(), aura->GetDuration());
+            sLog->outDebug("Aura %u partially interrupted on unit %u, new duration: %u ms",aura->GetId() , GetGUIDLow(), aura->GetDuration());
         }
     }
 }
@@ -4027,12 +4084,12 @@ AuraEffect * Unit::GetAuraEffect(uint32 spellId, uint8 effIndex, uint64 caster) 
 
 AuraEffect * Unit::GetAuraEffectOfRankedSpell(uint32 spellId, uint8 effIndex, uint64 caster) const
 {
-    uint32 rankSpell = sSpellMgr.GetFirstSpellInChain(spellId);
+    uint32 rankSpell = sSpellMgr->GetFirstSpellInChain(spellId);
     while (true)
     {
         if (AuraEffect * aurEff = GetAuraEffect(rankSpell, effIndex, caster))
             return aurEff;
-        SpellChainNode const * chainNode = sSpellMgr.GetSpellChainNode(rankSpell);
+        SpellChainNode const * chainNode = sSpellMgr->GetSpellChainNode(rankSpell);
         if (!chainNode)
             break;
         else
@@ -4090,12 +4147,12 @@ Aura * Unit::GetAura(uint32 spellId, uint64 casterGUID, uint64 itemCasterGUID, u
 
 AuraApplication * Unit::GetAuraApplicationOfRankedSpell(uint32 spellId, uint64 casterGUID, uint64 itemCasterGUID, uint8 reqEffMask, AuraApplication* except) const
 {
-    uint32 rankSpell = sSpellMgr.GetFirstSpellInChain(spellId);
+    uint32 rankSpell = sSpellMgr->GetFirstSpellInChain(spellId);
     while (true)
     {
         if (AuraApplication * aurApp = GetAuraApplication(rankSpell, casterGUID, itemCasterGUID, reqEffMask, except))
             return aurApp;
-        SpellChainNode const * chainNode = sSpellMgr.GetSpellChainNode(rankSpell);
+        SpellChainNode const * chainNode = sSpellMgr->GetSpellChainNode(rankSpell);
         if (!chainNode)
             break;
         else
@@ -4141,6 +4198,15 @@ bool Unit::HasAura(uint32 spellId, uint64 casterGUID, uint64 itemCasterGUID, uin
 bool Unit::HasAuraType(AuraType auraType) const
 {
     return (!m_modAuras[auraType].empty());
+}
+
+bool Unit::HasAuraTypeWithCaster(AuraType auratype, uint64 caster) const
+{
+    AuraEffectList const& mTotalAuraList = GetAuraEffectsByType(auratype);
+    for (AuraEffectList::const_iterator i = mTotalAuraList.begin(); i != mTotalAuraList.end(); ++i)
+        if (caster == (*i)->GetCasterGUID())
+            return true;
+    return false;
 }
 
 bool Unit::HasAuraTypeWithMiscvalue(AuraType auratype, int32 miscvalue) const
@@ -4538,7 +4604,7 @@ void Unit::AddGameObject(GameObject* gameObj)
     {
         SpellEntry const* createBySpell = sSpellStore.LookupEntry(gameObj->GetSpellId());
         // Need disable spell use for owner
-        if (createBySpell && createBySpell->Attributes & SPELL_ATTR_DISABLED_WHILE_ACTIVE)
+        if (createBySpell && createBySpell->Attributes & SPELL_ATTR0_DISABLED_WHILE_ACTIVE)
             // note: item based cooldowns and cooldown spell mods with charges ignored (unknown existed cases)
             this->ToPlayer()->AddSpellAndCategoryCooldowns(createBySpell,0,NULL,true);
     }
@@ -4568,7 +4634,7 @@ void Unit::RemoveGameObject(GameObject* gameObj, bool del)
         {
             SpellEntry const* createBySpell = sSpellStore.LookupEntry(spellid);
             // Need activate spell use for owner
-            if (createBySpell && createBySpell->Attributes & SPELL_ATTR_DISABLED_WHILE_ACTIVE)
+            if (createBySpell && createBySpell->Attributes & SPELL_ATTR0_DISABLED_WHILE_ACTIVE)
                 // note: item based cooldowns and cooldown spell mods with charges ignored (unknown existed cases)
                 this->ToPlayer()->SendCooldownEvent(createBySpell);
         }
@@ -4703,7 +4769,7 @@ void Unit::SendPeriodicAuraLog(SpellPeriodicAuraLogInfo *pInfo)
             data << float(pInfo->multiplier);               // gain multiplier
             break;
         default:
-            sLog.outError("Unit::SendPeriodicAuraLog: unknown aura %u", uint32(aura->GetAuraType()));
+            sLog->outError("Unit::SendPeriodicAuraLog: unknown aura %u", uint32(aura->GetAuraType()));
             return;
     }
 
@@ -4736,7 +4802,7 @@ void Unit::SendSpellDamageImmune(Unit * target, uint32 spellId)
 
 void Unit::SendAttackStateUpdate(CalcDamageInfo *damageInfo)
 {
-    sLog.outDebug("WORLD: Sending SMSG_ATTACKERSTATEUPDATE");
+    sLog->outDebug("WORLD: Sending SMSG_ATTACKERSTATEUPDATE");
 
     uint32 count = 1;
     size_t maxsize = 4+5+5+4+4+1+4+4+4+4+4+1+4+4+4+4+4*12;
@@ -4853,12 +4919,12 @@ bool Unit::HandleModPowerRegenAuraProc(Unit *pVictim, uint32 damage, AuraEffect*
 
     if (!triggerEntry)
     {
-        sLog.outError("Unit::HandleHasteAuraProc: Spell %u have not existed triggered spell %u",hasteSpell->Id,triggered_spell_id);
+        sLog->outError("Unit::HandleHasteAuraProc: Spell %u have not existed triggered spell %u",hasteSpell->Id,triggered_spell_id);
         return false;
     }
 
     // default case
-    if ((!target && !sSpellMgr.IsSrcTargetSpell(triggerEntry)) || (target && target != this && !target->isAlive()))
+    if ((!target && !sSpellMgr->IsSrcTargetSpell(triggerEntry)) || (target && target != this && !target->isAlive()))
         return false;
 
     if (cooldown && GetTypeId() == TYPEID_PLAYER && this->ToPlayer()->HasSpellCooldown(triggered_spell_id))
@@ -4915,7 +4981,7 @@ bool Unit::HandleSpellCritChanceAuraProc(Unit *pVictim, uint32 /*damage*/, AuraE
 
     if (!triggerEntry)
     {
-        sLog.outError("Unit::HandleHasteAuraProc: Spell %u have not existed triggered spell %u",triggeredByAuraSpell->Id,triggered_spell_id);
+        sLog->outError("Unit::HandleHasteAuraProc: Spell %u have not existed triggered spell %u",triggeredByAuraSpell->Id,triggered_spell_id);
         return false;
     }
 
@@ -4982,7 +5048,7 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, AuraEffect* trigger
                     if (basepoints0 > halfMaxHealth)
                         basepoints0 = halfMaxHealth;
 
-                    sLog.outDebug("DEBUG LINE: Data about Eye for an Eye ID %u, damage taken %u, unit max health %u, damage done %u", dummySpell->Id, damage, GetMaxHealth(), basepoints0);
+                    sLog->outDebug("DEBUG LINE: Data about Eye for an Eye ID %u, damage taken %u, unit max health %u, damage done %u", dummySpell->Id, damage, GetMaxHealth(), basepoints0);
 
                     triggered_spell_id = 25997;
 
@@ -5149,7 +5215,7 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, AuraEffect* trigger
 
                     target = this;
                     if (roll_chance_i(10))
-                        this->ToPlayer()->Say("This is Madness!", LANG_UNIVERSAL);
+                        this->ToPlayer()->Say("This is Madness!", LANG_UNIVERSAL); // TODO: It should be moved to database, shouldn't it?
                     break;
                 }
                 // Sunwell Exalted Caster Neck (??? neck)
@@ -5435,8 +5501,34 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, AuraEffect* trigger
                 // Shadow's Fate (Shadowmourne questline)
                 case 71169:
                 {
-                    triggered_spell_id = 71203;
                     target = triggeredByAura->GetCaster();
+                    Player* player = target->ToPlayer();
+                    if (!player)
+                        return false;
+                    // not checking Infusion auras because its in targetAuraSpell of credit spell
+                    if (player->GetQuestStatus(24749) == QUEST_STATUS_INCOMPLETE)       // Unholy Infusion
+                    {
+                        if (GetEntry() != 36678)                                        // Professor Putricide
+                            return false;
+                        CastSpell(target, 71518, true);                                 // Quest Credit
+                        return true;
+                    }
+                    else if (player->GetQuestStatus(24756) == QUEST_STATUS_INCOMPLETE)  // Blood Infusion
+                    {
+                        if (GetEntry() != 37955)                                        // Blood-Queen Lana'thel
+                            return false;
+                        CastSpell(target, 72934, true);                                 // Quest Credit
+                        return true;
+                    }
+                    else if (player->GetQuestStatus(24757) == QUEST_STATUS_INCOMPLETE)  // Frost Infusion
+                    {
+                        if (GetEntry() != 36853)                                        // Sindragosa
+                            return false;
+                        CastSpell(target, 72289, true);                                 // Quest Credit
+                        return true;
+                    }
+                    else if (player->GetQuestStatus(24547) == QUEST_STATUS_INCOMPLETE)  // A Feast of Souls
+                        triggered_spell_id = 71203;
                     break;
                 }
                 // Gaseous Bloat (Professor Putricide add)
@@ -5494,7 +5586,7 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, AuraEffect* trigger
                     case 31571: triggered_spell_id = 57529; break;
                     case 31572: triggered_spell_id = 57531; break;
                     default:
-                        sLog.outError("Unit::HandleDummyAuraProc: non handled spell id: %u",dummySpell->Id);
+                        sLog->outError("Unit::HandleDummyAuraProc: non handled spell id: %u",dummySpell->Id);
                         return false;
                 }
                 break;
@@ -5576,7 +5668,7 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, AuraEffect* trigger
                         case 12847: basepoints0 = int32(0.16f*damage); break;
                         case 12848: basepoints0 = int32(0.20f*damage); break;
                         default:
-                            sLog.outError("Unit::HandleDummyAuraProc: non handled spell id: %u (IG)",dummySpell->Id);
+                            sLog->outError("Unit::HandleDummyAuraProc: non handled spell id: %u (IG)",dummySpell->Id);
                             return false;
                     }
 
@@ -5672,7 +5764,7 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, AuraEffect* trigger
                     case 29834: triggered_spell_id=29841; break;
                     case 42770: triggered_spell_id=42771; break;
                     default:
-                        sLog.outError("Unit::HandleDummyAuraProc: non handled spell id: %u (SW)",dummySpell->Id);
+                        sLog->outError("Unit::HandleDummyAuraProc: non handled spell id: %u (SW)",dummySpell->Id);
                     return false;
                 }
 
@@ -6099,10 +6191,8 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, AuraEffect* trigger
                     if (triggeredByAura->GetCasterGUID() != GetGUID())
                         break;
                     int32 basepoints1 = triggerAmount * 2;
-                    // Improved Leader of the Pack
-                    // Check cooldown of heal spell cooldown
-                    if (GetTypeId() == TYPEID_PLAYER && !ToPlayer()->HasSpellCooldown(34299))
-                        CastCustomSpell(this,60889,&basepoints1,0,0,true,0,triggeredByAura);
+                    // Mana Part
+                    CastCustomSpell(this,68285,&basepoints1,0,0,true,0,triggeredByAura);
                     break;
                 }
                 // Healing Touch (Dreamwalker Raiment set)
@@ -6409,11 +6499,11 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, AuraEffect* trigger
             {
                 if (effIndex != 0)
                     return false;
-                triggered_spell_id = 25742;
+                triggered_spell_id = 20187;
                 float ap = GetTotalAttackPowerValue(BASE_ATTACK);
                 int32 holy = SpellBaseDamageBonus(SPELL_SCHOOL_MASK_HOLY) +
                              SpellBaseDamageBonusForVictim(SPELL_SCHOOL_MASK_HOLY, pVictim);
-                basepoints0 = (int32)GetAttackTime(BASE_ATTACK) * int32(ap*0.022f + 0.044f * holy) / 1000;
+                basepoints0 = (int32)GetAttackTime(BASE_ATTACK) * int32(ap*0.011f + 0.022f * holy) / 1000;
                 break;
             }
             // Light's Beacon - Beacon of Light
@@ -6456,29 +6546,6 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, AuraEffect* trigger
                 basepoints0 = triggerAmount;
                 CastCustomSpell(target,triggered_spell_id,&basepoints0,&basepoints0,NULL,true,castItem,triggeredByAura);
                 return true;
-            }
-            // Sacred Shield
-            if (dummySpell->SpellFamilyFlags[1] & 0x80000)
-            {
-                if (procFlag & PROC_FLAG_TAKEN_SPELL_MAGIC_DMG_CLASS_POS)
-                {
-                    if ((procSpell->SpellFamilyName == SPELLFAMILY_PALADIN) && (procSpell->SpellFamilyFlags[0] & 0x40000000))
-                    {
-                        basepoints0 = damage / 12;
-
-                        if (basepoints0)
-                            CastCustomSpell(this, 66922, &basepoints0, NULL, NULL, true, 0, triggeredByAura, pVictim->GetGUID());
-
-                        return true;
-                    }
-                    else
-                        return false;
-                }
-                else if (damage > 0)
-                    triggered_spell_id = 58597;
-
-                target = this;
-                break;
             }
             // Righteous Vengeance
             if (dummySpell->SpellIconID == 3025)
@@ -6846,7 +6913,7 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, AuraEffect* trigger
                         case 283: spellId =  8232; break;
                         default:
                         {
-                            sLog.outError("Unit::HandleDummyAuraProc: non handled item enchantment (rank?) %u for spell id: %u (Windfury)",
+                            sLog->outError("Unit::HandleDummyAuraProc: non handled item enchantment (rank?) %u for spell id: %u (Windfury)",
                                 castItem->GetEnchantmentId(EnchantmentSlot(TEMP_ENCHANTMENT_SLOT)),dummySpell->Id);
                             return false;
                         }
@@ -6855,7 +6922,7 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, AuraEffect* trigger
                     SpellEntry const* windfurySpellEntry = sSpellStore.LookupEntry(spellId);
                     if (!windfurySpellEntry)
                     {
-                        sLog.outError("Unit::HandleDummyAuraProc: non existed spell id: %u (Windfury)",spellId);
+                        sLog->outError("Unit::HandleDummyAuraProc: non existed spell id: %u (Windfury)",spellId);
                         return false;
                     }
 
@@ -7177,7 +7244,7 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, AuraEffect* trigger
                     case 49270: spellId = 49268; break;     // Rank  7
                     case 49271: spellId = 49269; break;     // Rank  8
                     default:
-                        sLog.outError("Unit::HandleDummyAuraProc: non handled spell id: %u (LO)", procSpell->Id);
+                        sLog->outError("Unit::HandleDummyAuraProc: non handled spell id: %u (LO)", procSpell->Id);
                         return false;
                 }
 
@@ -7208,7 +7275,7 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, AuraEffect* trigger
                 // Lightning Shield
                 if (AuraEffect const * aurEff = GetAuraEffect(SPELL_AURA_PROC_TRIGGER_SPELL, SPELLFAMILY_SHAMAN, 0x400, 0, 0))
                 {
-                    uint32 spell = sSpellMgr.GetSpellWithRank(26364, sSpellMgr.GetSpellRank(aurEff->GetId()));
+                    uint32 spell = sSpellMgr->GetSpellWithRank(26364, sSpellMgr->GetSpellRank(aurEff->GetId()));
 
                     // custom cooldown processing case
                     if (GetTypeId() == TYPEID_PLAYER && ToPlayer()->HasSpellCooldown(spell))
@@ -7413,7 +7480,7 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, AuraEffect* trigger
                     if (spellProto->SpellFamilyName == SPELLFAMILY_DEATHKNIGHT
                         && spellProto->SpellFamilyFlags[0] & 0x2000)
                     {
-                        SpellChainNode const* newChain = sSpellMgr.GetSpellChainNode(itr->first);
+                        SpellChainNode const* newChain = sSpellMgr->GetSpellChainNode(itr->first);
 
                         // No chain entry or entry lower than found entry
                         if (!chain || !newChain || (chain->rank < newChain->rank))
@@ -7506,12 +7573,12 @@ bool Unit::HandleDummyAuraProc(Unit *pVictim, uint32 damage, AuraEffect* trigger
     SpellEntry const* triggerEntry = sSpellStore.LookupEntry(triggered_spell_id);
     if (!triggerEntry)
     {
-        sLog.outError("Unit::HandleDummyAuraProc: Spell %u have not existed triggered spell %u",dummySpell->Id,triggered_spell_id);
+        sLog->outError("Unit::HandleDummyAuraProc: Spell %u have not existed triggered spell %u",dummySpell->Id,triggered_spell_id);
         return false;
     }
 
     // default case
-    if ((!target && !sSpellMgr.IsSrcTargetSpell(triggerEntry)) || (target && target != this && !target->isAlive()))
+    if ((!target && !sSpellMgr->IsSrcTargetSpell(triggerEntry)) || (target && target != this && !target->isAlive()))
         return false;
 
     if (cooldown_spell_id == 0)
@@ -7568,12 +7635,12 @@ bool Unit::HandleObsModEnergyAuraProc(Unit *pVictim, uint32 /*damage*/, AuraEffe
     // Try handle unknown trigger spells
     if (!triggerEntry)
     {
-        sLog.outError("Unit::HandleObsModEnergyAuraProc: Spell %u have not existed triggered spell %u",dummySpell->Id,triggered_spell_id);
+        sLog->outError("Unit::HandleObsModEnergyAuraProc: Spell %u have not existed triggered spell %u",dummySpell->Id,triggered_spell_id);
         return false;
     }
 
     // default case
-    if ((!target && !sSpellMgr.IsSrcTargetSpell(triggerEntry)) || (target && target != this && !target->isAlive()))
+    if ((!target && !sSpellMgr->IsSrcTargetSpell(triggerEntry)) || (target && target != this && !target->isAlive()))
         return false;
 
     if (cooldown && GetTypeId() == TYPEID_PLAYER && this->ToPlayer()->HasSpellCooldown(triggered_spell_id))
@@ -7625,12 +7692,12 @@ bool Unit::HandleModDamagePctTakenAuraProc(Unit *pVictim, uint32 /*damage*/, Aur
 
     if (!triggerEntry)
     {
-        sLog.outError("Unit::HandleModDamagePctTakenAuraProc: Spell %u have not existed triggered spell %u",dummySpell->Id,triggered_spell_id);
+        sLog->outError("Unit::HandleModDamagePctTakenAuraProc: Spell %u have not existed triggered spell %u",dummySpell->Id,triggered_spell_id);
         return false;
     }
 
     // default case
-    if ((!target && !sSpellMgr.IsSrcTargetSpell(triggerEntry)) || (target && target != this && !target->isAlive()))
+    if ((!target && !sSpellMgr->IsSrcTargetSpell(triggerEntry)) || (target && target != this && !target->isAlive()))
         return false;
 
     if (cooldown && GetTypeId() == TYPEID_PLAYER && this->ToPlayer()->HasSpellCooldown(triggered_spell_id))
@@ -7689,27 +7756,8 @@ bool Unit::HandleAuraProc(Unit * pVictim, uint32 damage, Aura * triggeredByAura,
             break;
         case SPELLFAMILY_PALADIN:
         {
-            // Infusion of Light
-            if (dummySpell->SpellIconID == 3021)
-            {
-                // Flash of Light HoT on Flash of Light when Sacred Shield active
-                if (procSpell->SpellFamilyFlags[0] & 0x40000000 && procSpell->SpellIconID == 242)
-                {
-                    *handled = true;
-                    if (pVictim->HasAura(53601))
-                    {
-                        int32 bp0 = (damage/12) * SpellMgr::CalculateSpellEffectAmount(dummySpell, 2)/100;
-                        CastCustomSpell(pVictim, 66922, &bp0, NULL, NULL, true);
-                        return true;
-                    }
-                }
-                // but should not proc on non-critical Holy Shocks
-                else if ((procSpell->SpellFamilyFlags[0] & 0x200000 || procSpell->SpellFamilyFlags[1] & 0x10000) && !(procEx & PROC_EX_CRITICAL_HIT))
-                    *handled = true;
-                break;
-            }
             // Judgements of the Just
-            else if (dummySpell->SpellIconID == 3015)
+            if (dummySpell->SpellIconID == 3015)
             {
                 *handled = true;
                 if (procSpell->Category == SPELLCATEGORY_JUDGEMENT)
@@ -7928,7 +7976,7 @@ bool Unit::HandleProcTriggerSpell(Unit *pVictim, uint32 damage, AuraEffect* trig
                             trigger_spell_id = 31643;
                             break;
                         default:
-                            sLog.outError("Unit::HandleProcTriggerSpell: Spell %u miss posibly Blazing Speed",auraSpellInfo->Id);
+                            sLog->outError("Unit::HandleProcTriggerSpell: Spell %u miss posibly Blazing Speed",auraSpellInfo->Id);
                             return false;
                     }
                 }
@@ -7994,7 +8042,7 @@ bool Unit::HandleProcTriggerSpell(Unit *pVictim, uint32 damage, AuraEffect* trig
                         case 27815: trigger_spell_id = 27817; break;
                         case 27816: trigger_spell_id = 27818; break;
                         default:
-                            sLog.outError("Unit::HandleProcTriggerSpell: Spell %u not handled in BR", auraSpellInfo->Id);
+                            sLog->outError("Unit::HandleProcTriggerSpell: Spell %u not handled in BR", auraSpellInfo->Id);
                         return false;
                     }
                     basepoints0 = damage * triggerAmount / 100 / 3;
@@ -8182,14 +8230,14 @@ bool Unit::HandleProcTriggerSpell(Unit *pVictim, uint32 damage, AuraEffect* trig
                                     case 48820: originalSpellId = 48824; break;
                                     case 48821: originalSpellId = 48825; break;
                                     default:
-                                        sLog.outError("Unit::HandleProcTriggerSpell: Spell %u not handled in HShock",procSpell->Id);
+                                        sLog->outError("Unit::HandleProcTriggerSpell: Spell %u not handled in HShock",procSpell->Id);
                                        return false;
                                 }
                             }
                             SpellEntry const *originalSpell = sSpellStore.LookupEntry(originalSpellId);
                             if (!originalSpell)
                             {
-                                sLog.outError("Unit::HandleProcTriggerSpell: Spell %u unknown but selected as original in Illu",originalSpellId);
+                                sLog->outError("Unit::HandleProcTriggerSpell: Spell %u unknown but selected as original in Illu",originalSpellId);
                                 return false;
                             }
                             // percent stored in effect 1 (class scripts) base points
@@ -8234,7 +8282,7 @@ bool Unit::HandleProcTriggerSpell(Unit *pVictim, uint32 damage, AuraEffect* trig
                         // Lightning Shield (overwrite non existing triggered spell call in spell.dbc
                         if (auraSpellInfo->SpellFamilyFlags[0] & 0x400)
                         {
-                            trigger_spell_id = sSpellMgr.GetSpellWithRank(26364, sSpellMgr.GetSpellRank(auraSpellInfo->Id));
+                            trigger_spell_id = sSpellMgr->GetSpellWithRank(26364, sSpellMgr->GetSpellRank(auraSpellInfo->Id));
                         }
                         // Nature's Guardian
                         else if (auraSpellInfo->SpellIconID == 2013)
@@ -8296,7 +8344,7 @@ bool Unit::HandleProcTriggerSpell(Unit *pVictim, uint32 damage, AuraEffect* trig
     if (triggerEntry == NULL)
     {
         // Not cast unknown spell
-        // sLog.outError("Unit::HandleProcTriggerSpell: Spell %u have 0 in EffectTriggered[%d], not handled custom case?",auraSpellInfo->Id,triggeredByAura->GetEffIndex());
+        // sLog->outError("Unit::HandleProcTriggerSpell: Spell %u have 0 in EffectTriggered[%d], not handled custom case?",auraSpellInfo->Id,triggeredByAura->GetEffIndex());
         return false;
     }
 
@@ -8331,7 +8379,21 @@ bool Unit::HandleProcTriggerSpell(Unit *pVictim, uint32 damage, AuraEffect* trig
                 return false;
             break;
         }
-
+        // Sacred Shield
+        case 85285:
+            {
+                if (!HealthBelowPct(30))
+                    return false;
+                break;
+            }
+        // Improved Hamstring
+        case 12289:
+        case 12668:
+            {
+                if (!pVictim->HasAura(1715))
+                    return false;
+                break;
+            }
         // Cheat Death
         case 28845:
         {
@@ -8545,7 +8607,7 @@ bool Unit::HandleProcTriggerSpell(Unit *pVictim, uint32 damage, AuraEffect* trig
 
             // have rank dependent proc chance, ignore too often cases
             // PPM = 2.5 * (rank of talent),
-            uint32 rank = sSpellMgr.GetSpellRank(auraSpellInfo->Id);
+            uint32 rank = sSpellMgr->GetSpellRank(auraSpellInfo->Id);
             // 5 rank -> 100% 4 rank -> 80% and etc from full rate
             if (!roll_chance_i(20*rank))
                 return false;
@@ -8641,16 +8703,36 @@ bool Unit::HandleProcTriggerSpell(Unit *pVictim, uint32 damage, AuraEffect* trig
             break;
         // Shadow's Fate (Shadowmourne questline)
         case 71169:
+        {
             if (GetTypeId() != TYPEID_PLAYER)
                 return false;
-            if (ToPlayer()->GetQuestStatus(24547) != QUEST_STATUS_INCOMPLETE)   // A Feast of Souls
-                return false;
+
+            Player* player = this->ToPlayer();
+            if (player->GetQuestStatus(24749) == QUEST_STATUS_INCOMPLETE)       // Unholy Infusion
+            {
+                if (!player->HasAura(71516) || pVictim->GetEntry() != 36678)    // Shadow Infusion && Professor Putricide
+                    return false;
+            }
+            else if (player->GetQuestStatus(24756) == QUEST_STATUS_INCOMPLETE)  // Blood Infusion
+            {
+                if (!player->HasAura(72154) || pVictim->GetEntry() != 37955)    // Thirst Quenched && Blood-Queen Lana'thel
+                    return false;
+            }
+            else if (player->GetQuestStatus(24757) == QUEST_STATUS_INCOMPLETE)  // Frost Infusion
+            {
+                if (!player->HasAura(72290) || pVictim->GetEntry() != 36853)    // Frost-Imbued Blade && Sindragosa
+                    return false;
+            }
+            else if (player->GetQuestStatus(24547) != QUEST_STATUS_INCOMPLETE)  // A Feast of Souls
+                 return false;
+
             if (pVictim->GetTypeId() != TYPEID_UNIT)
                 return false;
             // critters are not allowed
             if (pVictim->GetCreatureType() == CREATURE_TYPE_CRITTER)
                 return false;
             break;
+        }
     }
 
     if (cooldown && GetTypeId() == TYPEID_PLAYER && ToPlayer()->HasSpellCooldown(trigger_spell_id))
@@ -8661,7 +8743,7 @@ bool Unit::HandleProcTriggerSpell(Unit *pVictim, uint32 damage, AuraEffect* trig
        target = !(procFlags & (PROC_FLAG_DONE_SPELL_MAGIC_DMG_CLASS_POS | PROC_FLAG_DONE_SPELL_NONE_DMG_CLASS_POS)) && IsPositiveSpell(trigger_spell_id) ? this : pVictim;
 
     // default case
-    if ((!target && !sSpellMgr.IsSrcTargetSpell(triggerEntry)) || (target && target != this && !target->isAlive()))
+    if ((!target && !sSpellMgr->IsSrcTargetSpell(triggerEntry)) || (target && target != this && !target->isAlive()))
         return false;
 
     if (basepoints0)
@@ -8762,7 +8844,7 @@ bool Unit::HandleOverrideClassScriptAuraProc(Unit *pVictim, uint32 /*damage*/, A
 
     if (!triggerEntry)
     {
-        sLog.outError("Unit::HandleOverrideClassScriptAuraProc: Spell %u triggering for class script id %u",triggered_spell_id,scriptId);
+        sLog->outError("Unit::HandleOverrideClassScriptAuraProc: Spell %u triggering for class script id %u",triggered_spell_id,scriptId);
         return false;
     }
 
@@ -8830,11 +8912,11 @@ FactionTemplateEntry const* Unit::getFactionTemplateEntry() const
         if (GetGUID() != guid)
         {
             if (const Player *player = ToPlayer())
-                sLog.outError("Player %s has invalid faction (faction template id) #%u", player->GetName(), getFaction());
+                sLog->outError("Player %s has invalid faction (faction template id) #%u", player->GetName(), getFaction());
             else if (const Creature *creature = ToCreature())
-                sLog.outError("Creature (template id: %u) has invalid faction (faction template id) #%u", creature->GetCreatureInfo()->Entry, getFaction());
+                sLog->outError("Creature (template id: %u) has invalid faction (faction template id) #%u", creature->GetCreatureInfo()->Entry, getFaction());
             else
-                sLog.outError("Unit (name=%s, type=%u) has invalid faction (faction template id) #%u", GetName(), uint32(GetTypeId()), getFaction());
+                sLog->outError("Unit (name=%s, type=%u) has invalid faction (faction template id) #%u", GetName(), uint32(GetTypeId()), getFaction());
 
             guid = GetGUID();
         }
@@ -9136,16 +9218,16 @@ bool Unit::Attack(Unit *victim, bool meleeAttack)
             // switch to melee attack from ranged/magic
             if (meleeAttack)
             {
-                if (!hasUnitState(UNIT_STAT_MELEE_ATTACKING))
+                if (!HasUnitState(UNIT_STAT_MELEE_ATTACKING))
                 {
-                    addUnitState(UNIT_STAT_MELEE_ATTACKING);
+                    AddUnitState(UNIT_STAT_MELEE_ATTACKING);
                     SendMeleeAttackStart(victim);
                     return true;
                 }
             }
-            else if (hasUnitState(UNIT_STAT_MELEE_ATTACKING))
+            else if (HasUnitState(UNIT_STAT_MELEE_ATTACKING))
             {
-                clearUnitState(UNIT_STAT_MELEE_ATTACKING);
+                ClearUnitState(UNIT_STAT_MELEE_ATTACKING);
                 SendMeleeAttackStop(victim);
                 return true;
             }
@@ -9155,7 +9237,7 @@ bool Unit::Attack(Unit *victim, bool meleeAttack)
         //switch target
         InterruptSpell(CURRENT_MELEE_SPELL);
         if (!meleeAttack)
-            clearUnitState(UNIT_STAT_MELEE_ATTACKING);
+            ClearUnitState(UNIT_STAT_MELEE_ATTACKING);
     }
 
     if (m_attacking)
@@ -9168,7 +9250,7 @@ bool Unit::Attack(Unit *victim, bool meleeAttack)
     SetUInt64Value(UNIT_FIELD_TARGET, victim->GetGUID());
 
     if (meleeAttack)
-        addUnitState(UNIT_STAT_MELEE_ATTACKING);
+        AddUnitState(UNIT_STAT_MELEE_ATTACKING);
 
     // set position before any AI calls/assistance
     //if (GetTypeId() == TYPEID_UNIT)
@@ -9212,7 +9294,7 @@ bool Unit::AttackStop()
     // Clear our target
     SetUInt64Value(UNIT_FIELD_TARGET, 0);
 
-    clearUnitState(UNIT_STAT_MELEE_ATTACKING);
+    ClearUnitState(UNIT_STAT_MELEE_ATTACKING);
 
     InterruptSpell(CURRENT_MELEE_SPELL);
 
@@ -9258,7 +9340,7 @@ void Unit::CombatStopWithPets(bool includingCast)
 
 bool Unit::isAttackingPlayer() const
 {
-    if (hasUnitState(UNIT_STAT_ATTACK_PLAYER))
+    if (HasUnitState(UNIT_STAT_ATTACK_PLAYER))
         return true;
 
     for (ControlList::const_iterator itr = m_Controlled.begin(); itr != m_Controlled.end(); ++itr)
@@ -9281,7 +9363,7 @@ void Unit::RemoveAllAttackers()
         AttackerSet::iterator iter = m_attackers.begin();
         if (!(*iter)->AttackStop())
         {
-            sLog.outError("WORLD: Unit has an attacker that isn't attacking it!");
+            sLog->outError("WORLD: Unit has an attacker that isn't attacking it!");
             m_attackers.erase(iter);
         }
     }
@@ -9411,7 +9493,7 @@ Minion *Unit::GetFirstMinion() const
             if (pet->HasUnitTypeMask(UNIT_MASK_MINION))
                 return (Minion*)pet;
 
-        sLog.outError("Unit::GetFirstMinion: Minion %u not exist.",GUID_LOPART(pet_guid));
+        sLog->outError("Unit::GetFirstMinion: Minion %u not exist.",GUID_LOPART(pet_guid));
         const_cast<Unit*>(this)->SetMinionGUID(0);
     }
 
@@ -9426,7 +9508,7 @@ Guardian* Unit::GetGuardianPet() const
             if (pet->HasUnitTypeMask(UNIT_MASK_GUARDIAN))
                 return (Guardian*)pet;
 
-        sLog.outCrash("Unit::GetGuardianPet: Guardian " UI64FMTD " not exist.", pet_guid);
+        sLog->outCrash("Unit::GetGuardianPet: Guardian " UI64FMTD " not exist.", pet_guid);
         const_cast<Unit*>(this)->SetPetGUID(0);
     }
 
@@ -9440,7 +9522,7 @@ Unit* Unit::GetCharm() const
         if (Unit* pet = ObjectAccessor::GetUnit(*this, charm_guid))
             return pet;
 
-        sLog.outError("Unit::GetCharm: Charmed creature %u not exist.",GUID_LOPART(charm_guid));
+        sLog->outError("Unit::GetCharm: Charmed creature %u not exist.",GUID_LOPART(charm_guid));
         const_cast<Unit*>(this)->SetUInt64Value(UNIT_FIELD_CHARM, 0);
     }
 
@@ -9449,13 +9531,13 @@ Unit* Unit::GetCharm() const
 
 void Unit::SetMinion(Minion *minion, bool apply, PetSlot slot)
 {
-    sLog.outDebug("SetMinion %u for %u, apply %u", minion->GetEntry(), GetEntry(), apply);
+    sLog->outDebug("SetMinion %u for %u, apply %u", minion->GetEntry(), GetEntry(), apply);
     
     if (apply)
     {
         if (!minion->AddUInt64Value(UNIT_FIELD_SUMMONEDBY, GetGUID()))
         {
-            sLog.outCrash("SetMinion: Minion %u is not the minion of owner %u", minion->GetEntry(), GetEntry());
+            sLog->outCrash("SetMinion: Minion %u is not the minion of owner %u", minion->GetEntry(), GetEntry());
             return;
         }
 
@@ -9532,7 +9614,7 @@ void Unit::SetMinion(Minion *minion, bool apply, PetSlot slot)
         {
             // Send infinity cooldown - client does that automatically but after relog cooldown needs to be set again
             SpellEntry const *spellInfo = sSpellStore.LookupEntry(minion->GetUInt32Value(UNIT_CREATED_BY_SPELL));
-            if (spellInfo && (spellInfo->Attributes & SPELL_ATTR_DISABLED_WHILE_ACTIVE))
+            if (spellInfo && (spellInfo->Attributes & SPELL_ATTR0_DISABLED_WHILE_ACTIVE))
                 this->ToPlayer()->AddSpellAndCategoryCooldowns(spellInfo, 0, NULL, true);
         }
     }
@@ -9540,7 +9622,7 @@ void Unit::SetMinion(Minion *minion, bool apply, PetSlot slot)
     {
         if (minion->GetOwnerGUID() != GetGUID())
         {
-            sLog.outCrash("SetMinion: Minion %u is not the minion of owner %u", minion->GetEntry(), GetEntry());
+            sLog->outCrash("SetMinion: Minion %u is not the minion of owner %u", minion->GetEntry(), GetEntry());
             return;
         }
 
@@ -9574,7 +9656,7 @@ void Unit::SetMinion(Minion *minion, bool apply, PetSlot slot)
         {
             SpellEntry const *spellInfo = sSpellStore.LookupEntry(minion->GetUInt32Value(UNIT_CREATED_BY_SPELL));
             // Remove infinity cooldown
-            if (spellInfo && (spellInfo->Attributes & SPELL_ATTR_DISABLED_WHILE_ACTIVE))
+            if (spellInfo && (spellInfo->Attributes & SPELL_ATTR0_DISABLED_WHILE_ACTIVE))
                 this->ToPlayer()->SendCooldownEvent(spellInfo);
         }
 
@@ -9652,7 +9734,7 @@ void Unit::SetCharm(Unit* charm, bool apply)
         if (GetTypeId() == TYPEID_PLAYER)
         {
             if (!AddUInt64Value(UNIT_FIELD_CHARM, charm->GetGUID()))
-                sLog.outCrash("Player %s is trying to charm unit %u, but it already has a charmed unit " UI64FMTD "", GetName(), charm->GetEntry(), GetCharmGUID());
+                sLog->outCrash("Player %s is trying to charm unit %u, but it already has a charmed unit " UI64FMTD "", GetName(), charm->GetEntry(), GetCharmGUID());
 
             charm->m_ControlledByPlayer = true;
             // TODO: maybe we can use this flag to check if controlled by player
@@ -9665,7 +9747,7 @@ void Unit::SetCharm(Unit* charm, bool apply)
         charm->SetByteValue(UNIT_FIELD_BYTES_2, 1, GetByteValue(UNIT_FIELD_BYTES_2, 1));
 
         if (!charm->AddUInt64Value(UNIT_FIELD_CHARMEDBY, GetGUID()))
-            sLog.outCrash("Unit %u is being charmed, but it already has a charmer " UI64FMTD "", charm->GetEntry(), charm->GetCharmerGUID());
+            sLog->outCrash("Unit %u is being charmed, but it already has a charmer " UI64FMTD "", charm->GetEntry(), charm->GetCharmerGUID());
 
         if (charm->HasUnitMovementFlag(MOVEMENTFLAG_WALKING))
         {
@@ -9680,11 +9762,11 @@ void Unit::SetCharm(Unit* charm, bool apply)
         if (GetTypeId() == TYPEID_PLAYER)
         {
             if (!RemoveUInt64Value(UNIT_FIELD_CHARM, charm->GetGUID()))
-                sLog.outCrash("Player %s is trying to uncharm unit %u, but it has another charmed unit " UI64FMTD "", GetName(), charm->GetEntry(), GetCharmGUID());
+                sLog->outCrash("Player %s is trying to uncharm unit %u, but it has another charmed unit " UI64FMTD "", GetName(), charm->GetEntry(), GetCharmGUID());
         }
 
         if (!charm->RemoveUInt64Value(UNIT_FIELD_CHARMEDBY, GetGUID()))
-            sLog.outCrash("Unit %u is being uncharmed, but it has another charmer " UI64FMTD "", charm->GetEntry(), charm->GetCharmerGUID());
+            sLog->outCrash("Unit %u is being uncharmed, but it has another charmer " UI64FMTD "", charm->GetEntry(), charm->GetCharmerGUID());
 
         if (charm->GetTypeId() == TYPEID_PLAYER)
         {
@@ -9817,14 +9899,14 @@ void Unit::RemoveAllControlled()
         else if (target->GetOwnerGUID() == GetGUID() && target->isSummon())
             target->ToTempSummon()->UnSummon();
         else
-            sLog.outError("Unit %u is trying to release unit %u which is neither charmed nor owned by it", GetEntry(), target->GetEntry());
+            sLog->outError("Unit %u is trying to release unit %u which is neither charmed nor owned by it", GetEntry(), target->GetEntry());
     }
     if (GetPetGUID())
-        sLog.outCrash("Unit %u is not able to release its pet " UI64FMTD, GetEntry(), GetPetGUID());
+        sLog->outCrash("Unit %u is not able to release its pet " UI64FMTD, GetEntry(), GetPetGUID());
     if (GetMinionGUID())
-        sLog.outCrash("Unit %u is not able to release its minion " UI64FMTD, GetEntry(), GetMinionGUID());
+        sLog->outCrash("Unit %u is not able to release its minion " UI64FMTD, GetEntry(), GetMinionGUID());
     if (GetCharmGUID())
-        sLog.outCrash("Unit %u is not able to release its charm " UI64FMTD, GetEntry(), GetCharmGUID());
+        sLog->outCrash("Unit %u is not able to release its charm " UI64FMTD, GetEntry(), GetCharmGUID());
 }
 
 Unit* Unit::GetNextRandomRaidMemberOrPet(float radius)
@@ -9929,7 +10011,7 @@ void Unit::UnsummonAllTotems()
 void Unit::SendHealSpellLog(Unit *pVictim, uint32 SpellID, uint32 Damage, uint32 OverHeal, uint32 Absorb, bool critical)
 {
     // we guess size
-	WorldPacket data(SMSG_SPELLHEALLOG, 8+8+4+4+4+4+1+1);
+    WorldPacket data(SMSG_SPELLHEALLOG, 8+8+4+4+4+4+1+1);
     data.append(pVictim->GetPackGUID());
     data.append(GetPackGUID());
     data << uint32(SpellID);
@@ -9954,7 +10036,7 @@ int32 Unit::HealBySpell(Unit * pVictim, SpellEntry const * spellInfo, uint32 add
 
 void Unit::SendEnergizeSpellLog(Unit *pVictim, uint32 SpellID, uint32 Damage, Powers powertype)
 {
-	WorldPacket data(SMSG_SPELLENERGIZELOG, 8+8+4+4+4+1);
+    WorldPacket data(SMSG_SPELLENERGIZELOG, 8+8+4+4+4+1);
     data.append(pVictim->GetPackGUID());
     data.append(GetPackGUID());
     data << uint32(SpellID);
@@ -9970,7 +10052,7 @@ void Unit::EnergizeBySpell(Unit *pVictim, uint32 SpellID, uint32 Damage, Powers 
     pVictim->ModifyPower(powertype, Damage);
 }
 
-uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint32 pdamage, DamageEffectType damagetype, uint32 stack)
+uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint32 effIndex, uint32 pdamage, DamageEffectType damagetype, uint32 stack)
 {
     if (!spellProto || !pVictim || damagetype == DIRECT_DAMAGE)
         return pdamage;
@@ -9978,7 +10060,7 @@ uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint3
     // For totems get damage bonus from owner
     if (GetTypeId() == TYPEID_UNIT && this->ToCreature()->isTotem())
         if (Unit *owner = GetOwner())
-            return owner->SpellDamageBonus(pVictim, spellProto, pdamage, damagetype);
+            return owner->SpellDamageBonus(pVictim, spellProto, effIndex, pdamage, damagetype);
 
     // Taken/Done total percent damage auras
     float DoneTotalMod = 1.0f;
@@ -10108,7 +10190,7 @@ uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint3
             {
                 if (pVictim->GetAuraEffect(SPELL_AURA_PERIODIC_DAMAGE, SPELLFAMILY_DEATHKNIGHT, 0,0x02000000,0))
                 {
-                    if (SpellChainNode const *chain = sSpellMgr.GetSpellChainNode((*i)->GetId()))
+                    if (SpellChainNode const *chain = sSpellMgr->GetSpellChainNode((*i)->GetId()))
                         DoneTotalMod *= (chain->rank * 2.0f + 100.0f)/100.0f;
                 }
                 break;
@@ -10212,7 +10294,7 @@ uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint3
             // Drain Soul - increased damage for targets under 25 % HP
             if (spellProto->SpellFamilyFlags[0] & 0x00004000)
                 if (HasAura(200000))
-                    DoneTotalMod *= 4;
+                    DoneTotalMod *= 2;
         break;
         case SPELLFAMILY_HUNTER:
             // Steady Shot
@@ -10332,7 +10414,7 @@ uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint3
 
     // Check for table values
     float coeff = 0;
-    SpellBonusEntry const *bonus = sSpellMgr.GetSpellBonusData(spellProto->Id);
+    SpellBonusEntry const *bonus = sSpellMgr->GetSpellBonusData(spellProto->Id);
     if (bonus)
     {
         if (damagetype == DOT)
@@ -10361,7 +10443,21 @@ uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint3
     // Default calculation
     if (DoneAdvertisedBenefit || TakenAdvertisedBenefit)
     {
-        if (!bonus || coeff < 0)
+        if(coeff <= 0)
+        {
+            if(effIndex < 4)
+            {
+                coeff = spellProto->EffectBonusCoefficient[effIndex];
+            }
+            else
+            {   // should never happen
+                coeff = 0;
+            }
+
+        }
+        // Formula based SP coefficient calculation is disabled cause all coeffs should be present in the DBC
+        // A few custom cases go into spell_bonus_data table
+        /*if (!bonus || coeff < 0)
         {
             // Damage Done from spell damage bonus
             int32 CastingTime = IsChanneledSpell(spellProto) ? GetSpellDuration(spellProto) : GetSpellCastTime(spellProto);
@@ -10415,7 +10511,7 @@ uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint3
                 coeff = (CastingTime / 3500.0f) * DotFactor;
             else
                 coeff = DotFactor;
-        }
+        }*/
 
         float coeff2 = CalculateLevelPenalty(spellProto) * stack;
         if (spellProto->SpellFamilyName) //TODO: fix this
@@ -10430,7 +10526,7 @@ uint32 Unit::SpellDamageBonus(Unit *pVictim, SpellEntry const *spellProto, uint3
     }
 
     // Some spells don't benefit from done mods
-    if (spellProto->AttributesEx3 & SPELL_ATTR_EX3_NO_DONE_BONUS)
+    if (spellProto->AttributesEx3 & SPELL_ATTR3_NO_DONE_BONUS)
     {
         DoneTotal = 0;
         DoneTotalMod = 1.0f;
@@ -10516,7 +10612,7 @@ bool Unit::isSpellCrit(Unit *pVictim, SpellEntry const *spellProto, SpellSchoolM
         return false;
 
     // not critting spell
-    if ((spellProto->AttributesEx2 & SPELL_ATTR_EX2_CANT_CRIT))
+    if ((spellProto->AttributesEx2 & SPELL_ATTR2_CANT_CRIT))
         return false;
 
     float crit_chance = 0.0f;
@@ -10610,17 +10706,8 @@ bool Unit::isSpellCrit(Unit *pVictim, SpellEntry const *spellProto, SpellSchoolM
                             crit_chance = 0.0f;
                         break;
                     case SPELLFAMILY_PALADIN:
-                        // Flash of light
-                        if (spellProto->SpellFamilyFlags[0] & 0x40000000)
-                        {
-                            // Sacred Shield
-                            AuraEffect const* aura = pVictim->GetAuraEffect(58597,1);
-                            if (aura && aura->GetCasterGUID() == GetGUID())
-                                crit_chance+=aura->GetAmount();
-                            break;
-                        }
                         // Exorcism
-                        else if (spellProto->Category == 19)
+                        if (spellProto->Category == 19)
                         {
                             if (pVictim->GetCreatureTypeMask() & CREATURE_TYPEMASK_DEMON_OR_UNDEAD)
                                 return true;
@@ -10662,7 +10749,7 @@ bool Unit::isSpellCrit(Unit *pVictim, SpellEntry const *spellProto, SpellSchoolM
                         // Judgement of Command proc always crits on stunned target
                         if (spellProto->SpellFamilyName == SPELLFAMILY_PALADIN)
                             if (spellProto->SpellFamilyFlags[0] & 0x0000000000800000LL && spellProto->SpellIconID == 561)
-                                if (pVictim->hasUnitState(UNIT_STAT_STUNNED))
+                                if (pVictim->HasUnitState(UNIT_STAT_STUNNED))
                                     return true;
                 }
             }
@@ -10757,12 +10844,12 @@ uint32 Unit::SpellCriticalHealingBonus(SpellEntry const *spellProto, uint32 dama
     return damage;
 }
 
-uint32 Unit::SpellHealingBonus(Unit *pVictim, SpellEntry const *spellProto, uint32 healamount, DamageEffectType damagetype, uint32 stack)
+uint32 Unit::SpellHealingBonus(Unit *pVictim, SpellEntry const *spellProto, uint32 effIndex, uint32 healamount, DamageEffectType damagetype, uint32 stack)
 {
     // For totems get healing bonus from owner (statue isn't totem in fact)
     if (GetTypeId() == TYPEID_UNIT && this->ToCreature()->isTotem())
         if (Unit* owner = GetOwner())
-            return owner->SpellHealingBonus(pVictim, spellProto, healamount, damagetype, stack);
+            return owner->SpellHealingBonus(pVictim, spellProto, effIndex, healamount, damagetype, stack);
 
     // no bonus for heal potions/bandages
     if (spellProto->SpellFamilyName == SPELLFAMILY_POTION)
@@ -10845,6 +10932,8 @@ uint32 Unit::SpellHealingBonus(Unit *pVictim, SpellEntry const *spellProto, uint
     int32 DoneAdvertisedBenefit  = SpellBaseHealingBonus(GetSpellSchoolMask(spellProto));
     int32 TakenAdvertisedBenefit = SpellBaseHealingBonusForVictim(GetSpellSchoolMask(spellProto), pVictim);
 
+    // ignored now cause DBC should have the right info for nearly all effects
+    // delte if all goes well
     bool scripted = false;
 
     for (uint8 i = 0; i < MAX_SPELL_EFFECTS; ++i)
@@ -10860,7 +10949,7 @@ uint32 Unit::SpellHealingBonus(Unit *pVictim, SpellEntry const *spellProto, uint
     }
 
     // Check for table values
-    SpellBonusEntry const* bonus = !scripted ? sSpellMgr.GetSpellBonusData(spellProto->Id) : NULL;
+    SpellBonusEntry const* bonus = !scripted ? sSpellMgr->GetSpellBonusData(spellProto->Id) : NULL;
     float coeff = 0;
     float factorMod = 1.0f;
     if (bonus)
@@ -10907,7 +10996,21 @@ uint32 Unit::SpellHealingBonus(Unit *pVictim, SpellEntry const *spellProto, uint
     // Default calculation
     if (DoneAdvertisedBenefit || TakenAdvertisedBenefit)
     {
-        if ((!bonus && !scripted) || coeff < 0)
+        if(coeff <= 0)
+        {
+            if(effIndex < 4)
+            {
+                coeff = spellProto->EffectBonusCoefficient[effIndex];
+            }
+            else
+            {   // should never happen
+                coeff = 0;
+            }
+            
+        }
+        // Formula based SP coefficient calculation is disabled cause all coeffs should be present in the DBC
+        // A few custom cases go into spell_bonus_data table
+        /*if ((!bonus && !scripted) || coeff < 0)
         {
             // Damage Done from spell damage bonus
             int32 CastingTime = !IsChanneledSpell(spellProto) ? GetSpellCastTime(spellProto) : GetSpellDuration(spellProto);
@@ -10956,7 +11059,7 @@ uint32 Unit::SpellHealingBonus(Unit *pVictim, SpellEntry const *spellProto, uint
             }
             // As wowwiki says: C = (Cast Time / 3.5) * 1.88 (for healing spells)
             coeff = (CastingTime / 3500.0f) * DotFactor * 1.88f;
-        }
+        }*/
 
         factorMod *= CalculateLevelPenalty(spellProto)* stack;
         TakenTotal += int32(TakenAdvertisedBenefit * coeff * factorMod);
@@ -11097,7 +11200,7 @@ bool Unit::IsImmunedToDamage(SpellSchoolMask shoolMask)
 
 bool Unit::IsImmunedToDamage(SpellEntry const* spellInfo)
 {
-    if (spellInfo->Attributes & SPELL_ATTR_UNAFFECTED_BY_INVULNERABILITY)
+    if (spellInfo->Attributes & SPELL_ATTR0_UNAFFECTED_BY_INVULNERABILITY)
         return false;
 
     uint32 shoolMask = GetSpellSchoolMask(spellInfo);
@@ -11130,7 +11233,7 @@ bool Unit::IsImmunedToSpell(SpellEntry const* spellInfo)
         if (itr->type == spellInfo->Id)
             return true;
 
-    if (spellInfo->Attributes & SPELL_ATTR_UNAFFECTED_BY_INVULNERABILITY)
+    if (spellInfo->Attributes & SPELL_ATTR0_UNAFFECTED_BY_INVULNERABILITY)
         return false;
 
     if (spellInfo->Dispel)
@@ -11365,7 +11468,7 @@ void Unit::MeleeDamageBonus(Unit *pVictim, uint32 *pdamage, WeaponAttackType att
             case 7293:
             {
                 if (pVictim->GetAuraEffect(SPELL_AURA_PERIODIC_DAMAGE, SPELLFAMILY_DEATHKNIGHT, 0,0x02000000,0))
-                    if (SpellChainNode const *chain = sSpellMgr.GetSpellChainNode((*i)->GetId()))
+                    if (SpellChainNode const *chain = sSpellMgr->GetSpellChainNode((*i)->GetId()))
                         DoneTotalMod *= (chain->rank * 2.0f + 100.0f)/100.0f;
                 break;
             }
@@ -11467,7 +11570,7 @@ void Unit::MeleeDamageBonus(Unit *pVictim, uint32 *pdamage, WeaponAttackType att
                     AuraEffect* eff0 = (*i)->GetBase()->GetEffect(0);
                     if (!eff0 || (*i)->GetEffIndex() != 1)
                     {
-                        sLog.outError("Spell structure of DD (%u) changed.",(*i)->GetId());
+                        sLog->outError("Spell structure of DD (%u) changed.",(*i)->GetId());
                         continue;
                     }
 
@@ -11539,7 +11642,7 @@ void Unit::ApplySpellDispelImmunity(const SpellEntry * spellProto, DispelType ty
 {
     ApplySpellImmune(spellProto->Id,IMMUNITY_DISPEL, type, apply);
 
-    if (apply && spellProto->AttributesEx & SPELL_ATTR_EX_DISPEL_AURAS_ON_IMMUNITY)
+    if (apply && spellProto->AttributesEx & SPELL_ATTR1_DISPEL_AURAS_ON_IMMUNITY)
     {
         // Create dispel mask by dispel type
         uint32 dispelMask = GetDispellMask(type);
@@ -11652,7 +11755,7 @@ void Unit::Unmount()
     {
         if (Pet *pPet = this->ToPlayer()->GetPet())
         {
-            if (pPet && pPet->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_STUNNED) && !pPet->hasUnitState(UNIT_STAT_STUNNED))
+            if (pPet && pPet->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_STUNNED) && !pPet->HasUnitState(UNIT_STAT_STUNNED))
                 pPet->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_STUNNED);
         }
         else
@@ -11731,7 +11834,7 @@ void Unit::SetInCombatState(bool PvP, Unit* enemy)
     if (PvP)
         m_CombatTimer = 5000;
 
-    if (isInCombat() || hasUnitState(UNIT_STAT_EVADE))
+    if (isInCombat() || HasUnitState(UNIT_STAT_EVADE))
         return;
 
     SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IN_COMBAT);
@@ -11761,6 +11864,9 @@ void Unit::SetInCombatState(bool PvP, Unit* enemy)
             UpdateSpeed(MOVE_SWIM, true);
             UpdateSpeed(MOVE_FLIGHT, true);
         }
+
+        if (!(ToCreature()->GetCreatureInfo()->type_flags & CREATURE_TYPEFLAGS_MOUNTED_COMBAT))
+            Unmount();
     }
     
     if(GetTypeId() == TYPEID_PLAYER && ToPlayer()->getRace() == RACE_WORGEN)
@@ -11788,7 +11894,7 @@ void Unit::ClearInCombat()
         if (creature->GetCreatureInfo() && creature->GetCreatureInfo()->unit_flags & UNIT_FLAG_OOC_NOT_ATTACKABLE)
             SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_OOC_NOT_ATTACKABLE);//re-apply Out of Combat Non Attackable flag if we leave combat, can be overriden in scripts in EnterEvadeMode()
 
-        clearUnitState(UNIT_STAT_ATTACK_PLAYER);
+        ClearUnitState(UNIT_STAT_ATTACK_PLAYER);
         if (HasFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_TAPPED))
             SetUInt32Value(UNIT_DYNAMIC_FLAGS, ((Creature*)this)->GetCreatureInfo()->dynamicflags);
     }
@@ -11811,7 +11917,7 @@ void Unit::ClearInCombat()
 //TODO: remove this function
 bool Unit::isTargetableForAttack() const
 {
-    return isAttackableByAOE() && !hasUnitState(UNIT_STAT_DIED);
+    return isAttackableByAOE() && !HasUnitState(UNIT_STAT_DIED);
 }
 
 bool Unit::canAttack(Unit const* target, bool force) const
@@ -11838,15 +11944,7 @@ bool Unit::canAttack(Unit const* target, bool force) const
     else if (!IsHostileTo(target))
         return false;
 
-    if (!target->isAttackableByAOE() || target->hasUnitState(UNIT_STAT_DIED))
-        return false;
-
-    // shaman totem quests: spell 8898, shaman can detect elementals but elementals cannot see shaman
-    if (m_invisibilityMask || target->m_invisibilityMask)
-        if (!canDetectInvisibilityOf(target) && !target->canDetectInvisibilityOf(this))
-            return false;
-
-    if (target->GetVisibility() == VISIBILITY_GROUP_STEALTH && !canDetectStealthOf(target, GetDistance(target)))
+    if (!target->isAttackableByAOE() || target->HasUnitState(UNIT_STAT_DIED))
         return false;
 
     if (m_vehicle)
@@ -11868,7 +11966,7 @@ bool Unit::isAttackableByAOE(bool requireDeadTarget) const
     if (GetTypeId() == TYPEID_PLAYER && ToPlayer()->isGameMaster())
         return false;
 
-    return !hasUnitState(UNIT_STAT_UNATTACKABLE);
+    return !HasUnitState(UNIT_STAT_UNATTACKABLE);
 }
 
 int32 Unit::ModifyHealth(int32 dVal)
@@ -11960,98 +12058,36 @@ int32 Unit::ModifyPower(Powers power, int32 dVal)
     return gain;
 }
 
-bool Unit::isVisibleForOrDetect(Unit const* u, bool detect, bool inVisibleList, bool is3dDistance) const
+bool Unit::isAlwaysVisibleFor(WorldObject const* seer) const
 {
-    if (!u || !IsInMap(u))
-        return false;
-
-    return u->canSeeOrDetect(this, detect, inVisibleList, is3dDistance);
-}
-
-bool Unit::canSeeOrDetect(Unit const* /*u*/, bool /*detect*/, bool /*inVisibleList*/, bool /*is3dDistance*/) const
-{
-    return true;
-}
-
-bool Unit::canDetectInvisibilityOf(Unit const* u) const
-{
-    if (m_invisibilityMask & u->m_invisibilityMask) // same group
+    if (WorldObject::isAlwaysVisibleFor(seer))
         return true;
-    AuraEffectList const& auras = u->GetAuraEffectsByType(SPELL_AURA_MOD_STALKED); // Hunter mark
-    for (AuraEffectList::const_iterator iter = auras.begin(); iter != auras.end(); ++iter)
-        if ((*iter)->GetCasterGUID() == GetGUID())
+
+    // Always seen by owner
+    if (uint64 guid = GetCharmerOrOwnerGUID())
+        if (seer->GetGUID() == guid)
             return true;
-
-    if (uint32 mask = (m_detectInvisibilityMask & u->m_invisibilityMask))
-    {
-        for (uint8 i = 0; i < 10; ++i)
-        {
-            if (((1 << i) & mask) == 0)
-                continue;
-
-            // find invisibility level
-            uint32 invLevel = 0;
-            Unit::AuraEffectList const& iAuras = u->GetAuraEffectsByType(SPELL_AURA_MOD_INVISIBILITY);
-            for (Unit::AuraEffectList::const_iterator itr = iAuras.begin(); itr != iAuras.end(); ++itr)
-                if (uint8((*itr)->GetMiscValue()) == i && int32(invLevel) < (*itr)->GetAmount())
-                    invLevel = (*itr)->GetAmount();
-
-            // find invisibility detect level
-            uint32 detectLevel = 0;
-            if (i == 6 && GetTypeId() == TYPEID_PLAYER)          // special drunk detection case
-            {
-                detectLevel = this->ToPlayer()->GetDrunkValue();
-            }
-            else
-            {
-                Unit::AuraEffectList const& dAuras = GetAuraEffectsByType(SPELL_AURA_MOD_INVISIBILITY_DETECTION);
-                for (Unit::AuraEffectList::const_iterator itr = dAuras.begin(); itr != dAuras.end(); ++itr)
-                    if (uint8((*itr)->GetMiscValue()) == i && int32(detectLevel) < (*itr)->GetAmount())
-                        detectLevel = (*itr)->GetAmount();
-            }
-
-            if (invLevel <= detectLevel)
-                return true;
-        }
-    }
 
     return false;
 }
 
-bool Unit::canDetectStealthOf(Unit const* target, float distance) const
+bool Unit::isAlwaysDetectableFor(WorldObject const* seer) const
 {
-    if (hasUnitState(UNIT_STAT_STUNNED))
-        return false;
-    if (distance < 0.24f) //collision
-        return true;
-    if (!HasInArc(M_PI, target)) //behind
-        return false;
-    if (HasAuraType(SPELL_AURA_DETECT_STEALTH))
+    if (WorldObject::isAlwaysDetectableFor(seer))
         return true;
 
-    AuraEffectList const &auras = target->GetAuraEffectsByType(SPELL_AURA_MOD_STALKED); // Hunter mark
-    for (AuraEffectList::const_iterator iter = auras.begin(); iter != auras.end(); ++iter)
-        if ((*iter)->GetCasterGUID() == GetGUID())
-            return true;
+    if (HasAuraTypeWithCaster(SPELL_AURA_MOD_STALKED, seer->GetGUID()))
+        return true;
 
-    //Visible distance based on stealth value (stealth rank 4 300MOD, 10.5 - 3 = 7.5)
-    float visibleDistance = 7.5f;
-    //Visible distance is modified by -Level Diff (every level diff = 1.0f in visible distance)
-    visibleDistance += float(getLevelForTarget(target)) - target->GetTotalAuraModifier(SPELL_AURA_MOD_STEALTH)/5.0f;
-    //-Stealth Mod(positive like Master of Deception) and Stealth Detection(negative like paranoia)
-    //based on wowwiki every 5 mod we have 1 more level diff in calculation
-    visibleDistance += (float)(GetTotalAuraModifier(SPELL_AURA_MOD_DETECT) - target->GetTotalAuraModifier(SPELL_AURA_MOD_STEALTH_LEVEL)) / 5.0f;
-    visibleDistance = visibleDistance > MAX_PLAYER_STEALTH_DETECT_RANGE ? MAX_PLAYER_STEALTH_DETECT_RANGE : visibleDistance;
-
-    return distance < visibleDistance;
+    return false;
 }
 
-void Unit::SetVisibility(UnitVisibility x)
+void Unit::SetVisible(bool x)
 {
-    m_Visibility = x;
-
-    if (m_Visibility == VISIBILITY_GROUP_STEALTH)
-        DestroyForNearbyPlayers();
+    if (!x)
+        m_serverSideVisibility.SetValue(SERVERSIDE_VISIBILITY_GM, SEC_GAMEMASTER);
+    else
+        m_serverSideVisibility.SetValue(SERVERSIDE_VISIBILITY_GM, SEC_PLAYER);
 
     UpdateObjectVisibility();
 }
@@ -12123,7 +12159,7 @@ void Unit::UpdateSpeed(UnitMoveType mtype, bool forced)
             break;
         }
         default:
-            sLog.outError("Unit::UpdateSpeed: Unsupported move type (%d)", mtype);
+            sLog->outError("Unit::UpdateSpeed: Unsupported move type (%d)", mtype);
             return;
     }
 
@@ -12230,7 +12266,7 @@ void Unit::SetSpeed(UnitMoveType mtype, float rate, bool forced)
                 data.Initialize(MSG_MOVE_SET_PITCH_RATE, 8+4+2+4+4+4+4+4+4+4);
                 break;
             default:
-                sLog.outError("Unit::SetSpeed: Unsupported move type (%d), data not sent to client.",mtype);
+                sLog->outError("Unit::SetSpeed: Unsupported move type (%d), data not sent to client.",mtype);
                 return;
         }
 
@@ -12289,7 +12325,7 @@ void Unit::SetSpeed(UnitMoveType mtype, float rate, bool forced)
                 data.Initialize(SMSG_FORCE_PITCH_RATE_CHANGE, 16);
                 break;
             default:
-                sLog.outError("Unit::SetSpeed: Unsupported move type (%d), data not sent to client.",mtype);
+                sLog->outError("Unit::SetSpeed: Unsupported move type (%d), data not sent to client.",mtype);
                 return;
         }
         data.append(GetPackGUID());
@@ -12586,15 +12622,17 @@ Unit* Creature::SelectVictim()
                 return target;
     }
 
-    if (m_invisibilityMask)
+    Unit::AuraEffectList const& iAuras = GetAuraEffectsByType(SPELL_AURA_MOD_INVISIBILITY);
+    if(!iAuras.empty())
     {
-        Unit::AuraEffectList const& iAuras = GetAuraEffectsByType(SPELL_AURA_MOD_INVISIBILITY);
         for (Unit::AuraEffectList::const_iterator itr = iAuras.begin(); itr != iAuras.end(); ++itr)
+        {
             if ((*itr)->GetBase()->IsPermanent())
             {
                 AI()->EnterEvadeMode();
                 break;
             }
+        }
         return NULL;
     }
 
@@ -12713,8 +12751,8 @@ int32 Unit::ModSpellDuration(SpellEntry const* spellProto, Unit const* target, i
         if (target->GetTypeId() == TYPEID_PLAYER)
         {
             if (spellProto->SpellFamilyName == SPELLFAMILY_POTION && (
-                sSpellMgr.IsSpellMemberOfSpellGroup(spellProto->Id, SPELL_GROUP_ELIXIR_BATTLE) ||
-                sSpellMgr.IsSpellMemberOfSpellGroup(spellProto->Id, SPELL_GROUP_ELIXIR_GUARDIAN)))
+                sSpellMgr->IsSpellMemberOfSpellGroup(spellProto->Id, SPELL_GROUP_ELIXIR_BATTLE) ||
+                sSpellMgr->IsSpellMemberOfSpellGroup(spellProto->Id, SPELL_GROUP_ELIXIR_GUARDIAN)))
             {
                 if (target->HasAura(53042) && target->HasSpell(spellProto->EffectTriggerSpell[0]))
                     duration *= 2;
@@ -12762,9 +12800,9 @@ void Unit::ModSpellCastTime(SpellEntry const* spellProto, int32 & castTime, Spel
     if (Player* modOwner = GetSpellModOwner())
         modOwner->ApplySpellMod(spellProto->Id, SPELLMOD_CASTING_TIME, castTime, spell);
 
-    if (!(spellProto->Attributes & (SPELL_ATTR_UNK4|SPELL_ATTR_TRADESPELL)) && spellProto->SpellFamilyName)
+    if (!(spellProto->Attributes & (SPELL_ATTR0_UNK4|SPELL_ATTR0_TRADESPELL)) && spellProto->SpellFamilyName)
         castTime = int32(float(castTime) * GetFloatValue(UNIT_MOD_CAST_SPEED));
-    else if (spellProto->Attributes & SPELL_ATTR_REQ_AMMO && !(spellProto->AttributesEx2 & SPELL_ATTR_EX2_AUTOREPEAT_FLAG))
+    else if (spellProto->Attributes & SPELL_ATTR0_REQ_AMMO && !(spellProto->AttributesEx2 & SPELL_ATTR2_AUTOREPEAT_FLAG))
         castTime = int32(float(castTime) * m_modAttackSpeedPct[RANGED_ATTACK]);
     else if (spellProto->SpellVisual[0] == 3881 && HasAura(67556)) // cooking with Chef Hat.
         castTime = 500;
@@ -12937,11 +12975,6 @@ Creature* Unit::GetCreature(WorldObject& object, uint64 guid)
     return object.GetMap()->GetCreature(guid);
 }
 
-bool Unit::isVisibleForInState(Player const* u, bool inVisibleList) const
-{
-    return u->canSeeOrDetect(this, false, inVisibleList, false);
-}
-
 uint32 Unit::GetCreatureType() const
 {
     if (GetTypeId() == TYPEID_PLAYER)
@@ -12967,7 +13000,7 @@ bool Unit::HandleStatModifier(UnitMods unitMod, UnitModifierType modifierType, f
 {
     if (unitMod >= UNIT_MOD_END || modifierType >= MODIFIER_TYPE_END)
     {
-        sLog.outError("ERROR in HandleStatModifier(): non existed UnitMods or wrong UnitModifierType!");
+        sLog->outError("ERROR in HandleStatModifier(): non existed UnitMods or wrong UnitModifierType!");
         return false;
     }
 
@@ -13036,7 +13069,7 @@ float Unit::GetModifierValue(UnitMods unitMod, UnitModifierType modifierType) co
 {
     if (unitMod >= UNIT_MOD_END || modifierType >= MODIFIER_TYPE_END)
     {
-        sLog.outError("trial to access non existed modifier value from UnitMods!");
+        sLog->outError("trial to access non existed modifier value from UnitMods!");
         return 0.0f;
     }
 
@@ -13066,7 +13099,7 @@ float Unit::GetTotalAuraModValue(UnitMods unitMod) const
 {
     if (unitMod >= UNIT_MOD_END)
     {
-        sLog.outError("trial to access non existed UnitMods in GetTotalAuraModValue()!");
+        sLog->outError("trial to access non existed UnitMods in GetTotalAuraModValue()!");
         return 0.0f;
     }
 
@@ -13363,7 +13396,7 @@ void Unit::RemoveFromWorld()
 
         if (GetCharmerGUID())
         {
-            sLog.outCrash("Unit %u has charmer guid when removed from world", GetEntry());
+            sLog->outCrash("Unit %u has charmer guid when removed from world", GetEntry());
             ASSERT(false);
         }
 
@@ -13371,7 +13404,7 @@ void Unit::RemoveFromWorld()
         {
             if (owner->m_Controlled.find(this) != owner->m_Controlled.end())
             {
-                sLog.outCrash("Unit %u is in controlled list of %u when removed from world", GetEntry(), owner->GetEntry());
+                sLog->outCrash("Unit %u is in controlled list of %u when removed from world", GetEntry(), owner->GetEntry());
                 ASSERT(false);
             }
         }
@@ -13516,7 +13549,7 @@ void CharmInfo::InitPossessCreateSpells()
         {
             uint32 spellId = m_unit->ToCreature()->m_spells[i];
             SpellEntry const *spellInfo = sSpellStore.LookupEntry(spellId);
-            if (spellInfo && spellInfo->Attributes & SPELL_ATTR_CASTABLE_WHILE_DEAD)
+            if (spellInfo && spellInfo->Attributes & SPELL_ATTR0_CASTABLE_WHILE_DEAD)
                 spellId = 0;
             if (IsPassiveSpell(spellId))
                 m_unit->CastSpell(m_unit, spellId, true);
@@ -13540,7 +13573,7 @@ void CharmInfo::InitCharmCreateSpells()
     {
         uint32 spellId = m_unit->ToCreature()->m_spells[x];
         SpellEntry const *spellInfo = sSpellStore.LookupEntry(spellId);
-        if (spellInfo && spellInfo->Attributes & SPELL_ATTR_CASTABLE_WHILE_DEAD)
+        if (spellInfo && spellInfo->Attributes & SPELL_ATTR0_CASTABLE_WHILE_DEAD)
             spellId = 0;
 
         if (!spellId)
@@ -13587,14 +13620,14 @@ void CharmInfo::InitCharmCreateSpells()
 
 bool CharmInfo::AddSpellToActionBar(uint32 spell_id, ActiveStates newstate)
 {
-    uint32 first_id = sSpellMgr.GetFirstSpellInChain(spell_id);
+    uint32 first_id = sSpellMgr->GetFirstSpellInChain(spell_id);
 
     // new spell rank can be already listed
     for (uint8 i = 0; i < MAX_UNIT_ACTION_BAR_INDEX; ++i)
     {
         if (uint32 action = PetActionBar[i].GetAction())
         {
-            if (PetActionBar[i].IsActionBarForSpell() && sSpellMgr.GetFirstSpellInChain(action) == first_id)
+            if (PetActionBar[i].IsActionBarForSpell() && sSpellMgr->GetFirstSpellInChain(action) == first_id)
             {
                 PetActionBar[i].SetAction(spell_id);
                 return true;
@@ -13616,13 +13649,13 @@ bool CharmInfo::AddSpellToActionBar(uint32 spell_id, ActiveStates newstate)
 
 bool CharmInfo::RemoveSpellFromActionBar(uint32 spell_id)
 {
-    uint32 first_id = sSpellMgr.GetFirstSpellInChain(spell_id);
+    uint32 first_id = sSpellMgr->GetFirstSpellInChain(spell_id);
 
     for (uint8 i = 0; i < MAX_UNIT_ACTION_BAR_INDEX; ++i)
     {
         if (uint32 action = PetActionBar[i].GetAction())
         {
-            if (PetActionBar[i].IsActionBarForSpell() && sSpellMgr.GetFirstSpellInChain(action) == first_id)
+            if (PetActionBar[i].IsActionBarForSpell() && sSpellMgr->GetFirstSpellInChain(action) == first_id)
             {
                 SetActionBar(i,0,ACT_PASSIVE);
                 return true;
@@ -13911,7 +13944,7 @@ void Unit::ProcDamageAndSpellFor(bool isVictim, Unit * pTarget, uint32 procFlag,
             continue;
 
         // Triggered spells not triggering additional spells
-        bool triggered= !(spellProto->AttributesEx3 & SPELL_ATTR_EX3_CAN_PROC_TRIGGERED) ?
+        bool triggered= !(spellProto->AttributesEx3 & SPELL_ATTR3_CAN_PROC_TRIGGERED) ?
             (procExtra & PROC_EX_INTERNAL_TRIGGERED && !(procFlag & PROC_FLAG_DONE_TRAP_ACTIVATION)) : false;
 
         for (uint8 i = 0; i < MAX_SPELL_EFFECTS; ++i)
@@ -13958,14 +13991,14 @@ void Unit::ProcDamageAndSpellFor(bool isVictim, Unit * pTarget, uint32 procFlag,
         if (GetTypeId() == TYPEID_PLAYER && i->spellProcEvent && i->spellProcEvent->cooldown)
             cooldown = i->spellProcEvent->cooldown;
 
-        if (spellInfo->AttributesEx3 & SPELL_ATTR_EX3_DISABLE_PROC)
+        if (spellInfo->AttributesEx3 & SPELL_ATTR3_DISABLE_PROC)
             SetCantProc(true);
 
         // This bool is needed till separate aura effect procs are still here
         bool handled = false;
         if (HandleAuraProc(pTarget, damage, i->aura, procSpell, procFlag, procExtra, cooldown, &handled))
         {
-            sLog.outDebug("ProcDamageAndSpell: casting spell %u (triggered with value by %s aura of spell %u)", spellInfo->Id,(isVictim?"a victim's":"an attacker's"), Id);
+            sLog->outDebug("ProcDamageAndSpell: casting spell %u (triggered with value by %s aura of spell %u)", spellInfo->Id,(isVictim?"a victim's":"an attacker's"), Id);
             takeCharges = true;
         }
 
@@ -13982,7 +14015,7 @@ void Unit::ProcDamageAndSpellFor(bool isVictim, Unit * pTarget, uint32 procFlag,
             {
                 case SPELL_AURA_PROC_TRIGGER_SPELL:
                 {
-                    sLog.outDebug("ProcDamageAndSpell: casting spell %u (triggered by %s aura of spell %u)", spellInfo->Id,(isVictim?"a victim's":"an attacker's"), triggeredByAura->GetId());
+                    sLog->outDebug("ProcDamageAndSpell: casting spell %u (triggered by %s aura of spell %u)", spellInfo->Id,(isVictim?"a victim's":"an attacker's"), triggeredByAura->GetId());
                     // Don`t drop charge or add cooldown for not started trigger
                     if (HandleProcTriggerSpell(pTarget, damage, triggeredByAura, procSpell, procFlag, procExtra, cooldown))
                         takeCharges = true;
@@ -13990,9 +14023,9 @@ void Unit::ProcDamageAndSpellFor(bool isVictim, Unit * pTarget, uint32 procFlag,
                 }
                 case SPELL_AURA_PROC_TRIGGER_DAMAGE:
                 {
-                    sLog.outDebug("ProcDamageAndSpell: doing %u damage from spell id %u (triggered by %s aura of spell %u)", triggeredByAura->GetAmount() , spellInfo->Id, (isVictim?"a victim's":"an attacker's"), triggeredByAura->GetId());
+                    sLog->outDebug("ProcDamageAndSpell: doing %u damage from spell id %u (triggered by %s aura of spell %u)", triggeredByAura->GetAmount() , spellInfo->Id, (isVictim?"a victim's":"an attacker's"), triggeredByAura->GetId());
                     SpellNonMeleeDamage damageInfo(this, pTarget, spellInfo->Id, spellInfo->SchoolMask);
-                    uint32 damage = SpellDamageBonus(pTarget, spellInfo, triggeredByAura->GetAmount(), SPELL_DIRECT_DAMAGE);
+                    uint32 damage = SpellDamageBonus(pTarget, spellInfo, triggeredByAura->GetEffIndex(), triggeredByAura->GetAmount(), SPELL_DIRECT_DAMAGE);
                     CalculateSpellDamageTaken(&damageInfo, damage, spellInfo);
                     DealDamageMods(damageInfo.target,damageInfo.damage,&damageInfo.absorb);
                     SendSpellNonMeleeDamageLog(&damageInfo);
@@ -14003,38 +14036,38 @@ void Unit::ProcDamageAndSpellFor(bool isVictim, Unit * pTarget, uint32 procFlag,
                 case SPELL_AURA_MANA_SHIELD:
                 case SPELL_AURA_DUMMY:
                 {
-                    sLog.outDebug("ProcDamageAndSpell: casting spell id %u (triggered by %s dummy aura of spell %u)", spellInfo->Id,(isVictim?"a victim's":"an attacker's"), triggeredByAura->GetId());
+                    sLog->outDebug("ProcDamageAndSpell: casting spell id %u (triggered by %s dummy aura of spell %u)", spellInfo->Id,(isVictim?"a victim's":"an attacker's"), triggeredByAura->GetId());
                     if (HandleDummyAuraProc(pTarget, damage, triggeredByAura, procSpell, procFlag, procExtra, cooldown))
                         takeCharges = true;
                     break;
                 }
                 case SPELL_AURA_OBS_MOD_POWER:
-                    sLog.outDebug("ProcDamageAndSpell: casting spell id %u (triggered by %s aura of spell %u)", spellInfo->Id,(isVictim?"a victim's":"an attacker's"), triggeredByAura->GetId());
+                    sLog->outDebug("ProcDamageAndSpell: casting spell id %u (triggered by %s aura of spell %u)", spellInfo->Id,(isVictim?"a victim's":"an attacker's"), triggeredByAura->GetId());
                     if (HandleObsModEnergyAuraProc(pTarget, damage, triggeredByAura, procSpell, procFlag, procExtra, cooldown))
                         takeCharges = true;
                     break;
                 case SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN:
-                    sLog.outDebug("ProcDamageAndSpell: casting spell id %u (triggered by %s aura of spell %u)", spellInfo->Id,(isVictim?"a victim's":"an attacker's"), triggeredByAura->GetId());
+                    sLog->outDebug("ProcDamageAndSpell: casting spell id %u (triggered by %s aura of spell %u)", spellInfo->Id,(isVictim?"a victim's":"an attacker's"), triggeredByAura->GetId());
                     if (HandleModDamagePctTakenAuraProc(pTarget, damage, triggeredByAura, procSpell, procFlag, procExtra, cooldown))
                         takeCharges = true;
                     break;
                 case SPELL_AURA_MOD_POWER_REGEN_PERCENT:
                 {
-                    sLog.outDebug("ProcDamageAndSpell: casting spell id %u (triggered by %s ModPowerRegenPCT of spell %u)", spellInfo->Id,(isVictim?"a victim's":"an attacker's"), triggeredByAura->GetId());
+                    sLog->outDebug("ProcDamageAndSpell: casting spell id %u (triggered by %s ModPowerRegenPCT of spell %u)", spellInfo->Id,(isVictim?"a victim's":"an attacker's"), triggeredByAura->GetId());
                     if (HandleModPowerRegenAuraProc(pTarget, damage, triggeredByAura, procSpell, procFlag, procExtra, cooldown))
                         takeCharges = true;
                     break;
                 }
                 case SPELL_AURA_OVERRIDE_CLASS_SCRIPTS:
                 {
-                    sLog.outDebug("ProcDamageAndSpell: casting spell id %u (triggered by %s aura of spell %u)", spellInfo->Id,(isVictim?"a victim's":"an attacker's"), triggeredByAura->GetId());
+                    sLog->outDebug("ProcDamageAndSpell: casting spell id %u (triggered by %s aura of spell %u)", spellInfo->Id,(isVictim?"a victim's":"an attacker's"), triggeredByAura->GetId());
                     if (HandleOverrideClassScriptAuraProc(pTarget, damage, triggeredByAura, procSpell, cooldown))
                         takeCharges = true;
                     break;
                 }
                 case SPELL_AURA_RAID_PROC_FROM_CHARGE_WITH_VALUE:
                 {
-                    sLog.outDebug("ProcDamageAndSpell: casting mending (triggered by %s dummy aura of spell %u)",
+                    sLog->outDebug("ProcDamageAndSpell: casting mending (triggered by %s dummy aura of spell %u)",
                         (isVictim?"a victim's":"an attacker's"),triggeredByAura->GetId());
 
                     HandleAuraRaidProcFromChargeWithValue(triggeredByAura);
@@ -14043,7 +14076,7 @@ void Unit::ProcDamageAndSpellFor(bool isVictim, Unit * pTarget, uint32 procFlag,
                 }
                 case SPELL_AURA_RAID_PROC_FROM_CHARGE:
                 {
-                    sLog.outDebug("ProcDamageAndSpell: casting mending (triggered by %s dummy aura of spell %u)",
+                    sLog->outDebug("ProcDamageAndSpell: casting mending (triggered by %s dummy aura of spell %u)",
                         (isVictim?"a victim's":"an attacker's"),triggeredByAura->GetId());
 
                     HandleAuraRaidProcFromCharge(triggeredByAura);
@@ -14052,7 +14085,7 @@ void Unit::ProcDamageAndSpellFor(bool isVictim, Unit * pTarget, uint32 procFlag,
                 }
                 case SPELL_AURA_PROC_TRIGGER_SPELL_WITH_VALUE:
                 {
-                    sLog.outDebug("ProcDamageAndSpell: casting spell %u (triggered with value by %s aura of spell %u)", spellInfo->Id,(isVictim?"a victim's":"an attacker's"), triggeredByAura->GetId());
+                    sLog->outDebug("ProcDamageAndSpell: casting spell %u (triggered with value by %s aura of spell %u)", spellInfo->Id,(isVictim?"a victim's":"an attacker's"), triggeredByAura->GetId());
 
                     if (HandleProcTriggerSpell(pTarget, damage, triggeredByAura, procSpell, procFlag, procExtra, cooldown))
                         takeCharges = true;
@@ -14092,7 +14125,7 @@ void Unit::ProcDamageAndSpellFor(bool isVictim, Unit * pTarget, uint32 procFlag,
                         takeCharges = true;
                     break;
                 case SPELL_AURA_MOD_SPELL_CRIT_CHANCE:
-                    sLog.outDebug("ProcDamageAndSpell: casting spell id %u (triggered by %s spell crit chance aura of spell %u)", spellInfo->Id,(isVictim?"a victim's":"an attacker's"), triggeredByAura->GetId());
+                    sLog->outDebug("ProcDamageAndSpell: casting spell id %u (triggered by %s spell crit chance aura of spell %u)", spellInfo->Id,(isVictim?"a victim's":"an attacker's"), triggeredByAura->GetId());
                     if (procSpell && HandleSpellCritChanceAuraProc(pTarget, damage, triggeredByAura, procSpell, procFlag, procExtra, cooldown))
                         takeCharges = true;
                     break;
@@ -14140,7 +14173,7 @@ void Unit::ProcDamageAndSpellFor(bool isVictim, Unit * pTarget, uint32 procFlag,
         if (useCharges && takeCharges)
             i->aura->DropCharge();
 
-        if (spellInfo->AttributesEx3 & SPELL_ATTR_EX3_DISABLE_PROC)
+        if (spellInfo->AttributesEx3 & SPELL_ATTR3_DISABLE_PROC)
             SetCantProc(false);
     }
 
@@ -14225,11 +14258,11 @@ void Unit::SendPetAIReaction(uint64 guid)
 
 void Unit::StopMoving()
 {
-    clearUnitState(UNIT_STAT_MOVING);
+    ClearUnitState(UNIT_STAT_MOVING);
 
     // send explicit stop packet
     // rely on vmaps here because for example stormwind is in air
-    //float z = sMapMgr.GetBaseMap(GetMapId())->GetHeight(GetPositionX(), GetPositionY(), GetPositionZ(), true);
+    //float z = sMapMgr->GetBaseMap(GetMapId())->GetHeight(GetPositionX(), GetPositionY(), GetPositionZ(), true);
     //if (fabs(GetPositionZ() - z) < 2.0f)
     //    Relocate(GetPositionX(), GetPositionY(), z);
     //Relocate(GetPositionX(), GetPositionY(),GetPositionZ());
@@ -14309,7 +14342,7 @@ void Unit::ClearComboPointHolders()
     {
         uint32 lowguid = *m_ComboPointHolders.begin();
 
-        Player* plr = sObjectMgr.GetPlayer(MAKE_NEW_GUID(lowguid, 0, HIGHGUID_PLAYER));
+        Player* plr = sObjectMgr->GetPlayer(MAKE_NEW_GUID(lowguid, 0, HIGHGUID_PLAYER));
         if (plr && plr->GetComboTarget() == GetGUID())         // recheck for safe
             plr->ClearComboPoints();                        // remove also guid from m_ComboPointHolders;
         else
@@ -14578,18 +14611,18 @@ void Unit::SetContestedPvP(Player *attackedPlayer)
         return;
 
     player->SetContestedPvPTimer(30000);
-    if (!player->hasUnitState(UNIT_STAT_ATTACK_PLAYER))
+    if (!player->HasUnitState(UNIT_STAT_ATTACK_PLAYER))
     {
-        player->addUnitState(UNIT_STAT_ATTACK_PLAYER);
+        player->AddUnitState(UNIT_STAT_ATTACK_PLAYER);
         player->SetFlag(PLAYER_FLAGS, PLAYER_FLAGS_CONTESTED_PVP);
         // call MoveInLineOfSight for nearby contested guards
-        player->SetVisibility(player->GetVisibility());
+        UpdateObjectVisibility();
     }
-    if (!hasUnitState(UNIT_STAT_ATTACK_PLAYER))
+    if (!HasUnitState(UNIT_STAT_ATTACK_PLAYER))
     {
-        addUnitState(UNIT_STAT_ATTACK_PLAYER);
+        AddUnitState(UNIT_STAT_ATTACK_PLAYER);
         // call MoveInLineOfSight for nearby contested guards
-        SetVisibility(GetVisibility());
+        UpdateObjectVisibility();
     }
 }
 
@@ -14638,7 +14671,7 @@ Pet* Unit::CreateTamedPetFrom(uint32 creatureEntry, uint32 spell_id)
     if (GetTypeId() != TYPEID_PLAYER)
         return NULL;
 
-    CreatureInfo const* creatureInfo = sObjectMgr.GetCreatureTemplate(creatureEntry);
+    CreatureInfo const* creatureInfo = ObjectMgr::GetCreatureTemplate(creatureEntry);
     if (!creatureInfo)
         return NULL;
 
@@ -14664,11 +14697,11 @@ bool Unit::InitTamedPet(Pet * pet, uint8 level, uint32 spell_id)
 
     if (!pet->InitStatsForLevel(level))
     {
-        sLog.outError("Pet::InitStatsForLevel() failed for creature (Entry: %u)!",pet->GetEntry());
+        sLog->outError("Pet::InitStatsForLevel() failed for creature (Entry: %u)!",pet->GetEntry());
         return false;
     }
 
-    pet->GetCharmInfo()->SetPetNumber(sObjectMgr.GeneratePetNumber(), true);
+    pet->GetCharmInfo()->SetPetNumber(sObjectMgr->GeneratePetNumber(), true);
     // this enables pet details window (Shift+P)
     pet->InitPetCreateSpells();
     //pet->InitLevelupSpellsForLevel();
@@ -14681,7 +14714,7 @@ bool Unit::IsTriggeredAtSpellProcEvent(Unit *pVictim, Aura * aura, SpellEntry co
     SpellEntry const *spellProto = aura->GetSpellProto();
 
     // Get proc Event Entry
-    spellProcEvent = sSpellMgr.GetSpellProcEvent(spellProto->Id);
+    spellProcEvent = sSpellMgr->GetSpellProcEvent(spellProto->Id);
 
     // Get EventProcFlag
     uint32 EventProcFlag;
@@ -14696,12 +14729,12 @@ bool Unit::IsTriggeredAtSpellProcEvent(Unit *pVictim, Aura * aura, SpellEntry co
     // Additional checks for triggered spells (ignore trap casts)
     if (procExtra & PROC_EX_INTERNAL_TRIGGERED && !(procFlag & PROC_FLAG_DONE_TRAP_ACTIVATION))
     {
-        if (!(spellProto->AttributesEx3 & SPELL_ATTR_EX3_CAN_PROC_TRIGGERED))
+        if (!(spellProto->AttributesEx3 & SPELL_ATTR3_CAN_PROC_TRIGGERED))
             return false;
     }
 
     // Check spellProcEvent data requirements
-    if (!sSpellMgr.IsSpellProcEventCanTriggeredBy(spellProcEvent, EventProcFlag, procSpell, procFlag, procExtra, active))
+    if (!sSpellMgr->IsSpellProcEventCanTriggeredBy(spellProcEvent, EventProcFlag, procSpell, procFlag, procExtra, active))
         return false;
     // In most cases req get honor or XP from kill
     if (EventProcFlag & PROC_FLAG_KILL && GetTypeId() == TYPEID_PLAYER)
@@ -14788,7 +14821,7 @@ bool Unit::HandleAuraRaidProcFromChargeWithValue(AuraEffect *triggeredByAura)
     //Currently only Prayer of Mending
     if (!(spellProto->SpellFamilyName == SPELLFAMILY_PRIEST && spellProto->SpellFamilyFlags[1] & 0x20))
     {
-        sLog.outDebug("Unit::HandleAuraRaidProcFromChargeWithValue, received not handled spell: %u", spellProto->Id);
+        sLog->outDebug("Unit::HandleAuraRaidProcFromChargeWithValue, received not handled spell: %u", spellProto->Id);
         return false;
     }
 
@@ -14845,7 +14878,7 @@ bool Unit::HandleAuraRaidProcFromCharge(AuraEffect* triggeredByAura)
             damageSpellId = 43594;
             break;
         default:
-            sLog.outError("Unit::HandleAuraRaidProcFromCharge, received not handled spell: %u", spellProto->Id);
+            sLog->outError("Unit::HandleAuraRaidProcFromCharge, received not handled spell: %u", spellProto->Id);
             return false;
     }
 
@@ -14934,7 +14967,7 @@ void Unit::Kill(Unit *pVictim, bool durabilityLoss)
                 group->UpdateLooterGuid(creature, true);
                 if (group->GetLooterGuid())
                 {
-                    pLooter = sObjectMgr.GetPlayer(group->GetLooterGuid());
+                    pLooter = sObjectMgr->GetPlayer(group->GetLooterGuid());
                     if (pLooter)
                     {
                         creature->SetLootRecipient(pLooter);   // update creature loot recipient to the allowed looter.
@@ -15019,7 +15052,7 @@ void Unit::Kill(Unit *pVictim, bool durabilityLoss)
 
     if (!SpiritOfRedemption)
     {
-        sLog.outStaticDebug("SET JUST_DIED");
+        sLog->outStaticDebug("SET JUST_DIED");
         pVictim->setDeathState(JUST_DIED);
     }
 
@@ -15032,10 +15065,10 @@ void Unit::Kill(Unit *pVictim, bool durabilityLoss)
         pVictim->ToPlayer()->SetPvPDeath(player != NULL);
 
         // only if not player and not controlled by player pet. And not at BG
-        if ((durabilityLoss && !player && !pVictim->ToPlayer()->InBattleground()) || (player && sWorld.getBoolConfig(CONFIG_DURABILITY_LOSS_IN_PVP)))
+        if ((durabilityLoss && !player && !pVictim->ToPlayer()->InBattleground()) || (player && sWorld->getBoolConfig(CONFIG_DURABILITY_LOSS_IN_PVP)))
         {
-            sLog.outStaticDebug("We are dead, losing %f percent durability", sWorld.getRate(RATE_DURABILITY_LOSS_ON_DEATH));
-            pVictim->ToPlayer()->DurabilityLossAll(sWorld.getRate(RATE_DURABILITY_LOSS_ON_DEATH),false);
+            sLog->outStaticDebug("We are dead, losing %f percent durability", sWorld->getRate(RATE_DURABILITY_LOSS_ON_DEATH));
+            pVictim->ToPlayer()->DurabilityLossAll(sWorld->getRate(RATE_DURABILITY_LOSS_ON_DEATH),false);
             // durability lost message
             WorldPacket data(SMSG_DURABILITY_DAMAGE_DEATH, 0);
             pVictim->ToPlayer()->GetSession()->SendPacket(&data);
@@ -15054,7 +15087,7 @@ void Unit::Kill(Unit *pVictim, bool durabilityLoss)
     }
     else                                                // creature died
     {
-        sLog.outStaticDebug("DealDamageNotPlayer");
+        sLog->outStaticDebug("DealDamageNotPlayer");
 
         if (!creature->isPet())
         {
@@ -15100,7 +15133,7 @@ void Unit::Kill(Unit *pVictim, bool durabilityLoss)
                     // the reset time is set but not added to the scheduler
                     // until the players leave the instance
                     time_t resettime = creature->GetRespawnTimeEx() + 2 * HOUR;
-                    if (InstanceSave *save = sInstanceSaveMgr.GetInstanceSave(creature->GetInstanceId()))
+                    if (InstanceSave *save = sInstanceSaveMgr->GetInstanceSave(creature->GetInstanceId()))
                         if (save->GetResetTime() < resettime) save->SetResetTime(resettime);
                 }
             }
@@ -15145,13 +15178,13 @@ void Unit::Kill(Unit *pVictim, bool durabilityLoss)
         {
             Player *killer = this->ToPlayer();
             Player *killed = pVictim->ToPlayer();
-            sScriptMgr.OnPVPKill(killer, killed);
+            sScriptMgr->OnPVPKill(killer, killed);
         }
         else if (pVictim->GetTypeId() == TYPEID_UNIT)
         {
             Player *killer = this->ToPlayer();
             Creature *killed = pVictim->ToCreature();
-            sScriptMgr.OnCreatureKill(killer, killed);
+            sScriptMgr->OnCreatureKill(killer, killed);
         }
     }
     else if (this->GetTypeId() == TYPEID_UNIT)
@@ -15160,7 +15193,7 @@ void Unit::Kill(Unit *pVictim, bool durabilityLoss)
         {
             Creature *killer = this->ToCreature();
             Player *killed = pVictim->ToPlayer();
-            sScriptMgr.OnPlayerKilledByCreature(killer, killed);
+            sScriptMgr->OnPlayerKilledByCreature(killer, killed);
         }
     }
 }
@@ -15169,10 +15202,10 @@ void Unit::SetControlled(bool apply, UnitState state)
 {
     if (apply)
     {
-        if (hasUnitState(state))
+        if (HasUnitState(state))
             return;
 
-        addUnitState(state);
+        AddUnitState(state);
         switch(state)
         {
             case UNIT_STAT_STUNNED:
@@ -15180,18 +15213,18 @@ void Unit::SetControlled(bool apply, UnitState state)
                 CastStop();
                 break;
             case UNIT_STAT_ROOT:
-                if (!hasUnitState(UNIT_STAT_STUNNED))
+                if (!HasUnitState(UNIT_STAT_STUNNED))
                     SetRooted(true);
                 break;
             case UNIT_STAT_CONFUSED:
-                if (!hasUnitState(UNIT_STAT_STUNNED))
+                if (!HasUnitState(UNIT_STAT_STUNNED))
                 {
                     SetConfused(true);
                     CastStop();
                 }
                 break;
             case UNIT_STAT_FLEEING:
-                if (!hasUnitState(UNIT_STAT_STUNNED | UNIT_STAT_CONFUSED))
+                if (!HasUnitState(UNIT_STAT_STUNNED | UNIT_STAT_CONFUSED))
                 {
                     SetFeared(true);
                     CastStop();
@@ -15216,18 +15249,18 @@ void Unit::SetControlled(bool apply, UnitState state)
             default: return;
         }
 
-        clearUnitState(state);
+        ClearUnitState(state);
 
-        if (hasUnitState(UNIT_STAT_STUNNED))
+        if (HasUnitState(UNIT_STAT_STUNNED))
             SetStunned(true);
         else
         {
-            if (hasUnitState(UNIT_STAT_ROOT))
+            if (HasUnitState(UNIT_STAT_ROOT))
                 SetRooted(true);
 
-            if (hasUnitState(UNIT_STAT_CONFUSED))
+            if (HasUnitState(UNIT_STAT_CONFUSED))
                 SetConfused(true);
-            else if (hasUnitState(UNIT_STAT_FLEEING))
+            else if (HasUnitState(UNIT_STAT_FLEEING))
                 SetFeared(true);
         }
     }
@@ -15261,7 +15294,7 @@ void Unit::SetStunned(bool apply)
         if (!pOwner || (pOwner->GetTypeId() == TYPEID_PLAYER && !pOwner->ToPlayer()->IsMounted()))
             RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_STUNNED);
 
-        if (!hasUnitState(UNIT_STAT_ROOT))         // prevent allow move if have also root effect
+        if (!HasUnitState(UNIT_STAT_ROOT))         // prevent allow move if have also root effect
         {
             if(Player * plr = ToPlayer())
                 plr->SetMovement(MOVE_UNROOT);
@@ -15290,7 +15323,7 @@ void Unit::SetRooted(bool apply)
     }
     else
     {
-        if (!hasUnitState(UNIT_STAT_STUNNED))      // prevent allow move if have also stun effect
+        if (!HasUnitState(UNIT_STAT_STUNNED))      // prevent allow move if have also stun effect
         {
             m_rootTimes++; //blizzard internal check?
 
@@ -15317,7 +15350,7 @@ void Unit::SetFeared(bool apply)
             caster = ObjectAccessor::GetUnit(*this, fearAuras.front()->GetCasterGUID());
         if (!caster)
             caster = getAttackerForHelper();
-        GetMotionMaster()->MoveFleeing(caster, fearAuras.empty() ? sWorld.getIntConfig(CONFIG_CREATURE_FAMILY_FLEE_DELAY) : 0);             // caster == NULL processed in MoveFleeing
+        GetMotionMaster()->MoveFleeing(caster, fearAuras.empty() ? sWorld->getIntConfig(CONFIG_CREATURE_FAMILY_FLEE_DELAY) : 0);             // caster == NULL processed in MoveFleeing
     }
     else
     {
@@ -15368,27 +15401,27 @@ bool Unit::SetCharmedBy(Unit* charmer, CharmType type, AuraApplication const * a
     ASSERT(type != CHARM_TYPE_POSSESS || charmer->GetTypeId() == TYPEID_PLAYER);
     ASSERT((type == CHARM_TYPE_VEHICLE) == IsVehicle());
 
-    sLog.outDebug("SetCharmedBy: charmer %u (GUID %u), charmed %u (GUID %u), type %u.", charmer->GetEntry(), charmer->GetGUIDLow(), GetEntry(), GetGUIDLow(), uint32(type));
+    sLog->outDebug("SetCharmedBy: charmer %u (GUID %u), charmed %u (GUID %u), type %u.", charmer->GetEntry(), charmer->GetGUIDLow(), GetEntry(), GetGUIDLow(), uint32(type));
 
     if (this == charmer)
     {
-        sLog.outCrash("Unit::SetCharmedBy: Unit %u (GUID %u) is trying to charm itself!", GetEntry(), GetGUIDLow());
+        sLog->outCrash("Unit::SetCharmedBy: Unit %u (GUID %u) is trying to charm itself!", GetEntry(), GetGUIDLow());
         return false;
     }
 
-    //if (hasUnitState(UNIT_STAT_UNATTACKABLE))
+    //if (HasUnitState(UNIT_STAT_UNATTACKABLE))
     //    return false;
 
     if (GetTypeId() == TYPEID_PLAYER && this->ToPlayer()->GetTransport())
     {
-        sLog.outCrash("Unit::SetCharmedBy: Player on transport is trying to charm %u (GUID %u)", GetEntry(), GetGUIDLow());
+        sLog->outCrash("Unit::SetCharmedBy: Player on transport is trying to charm %u (GUID %u)", GetEntry(), GetGUIDLow());
         return false;
     }
 
     // Already charmed
     if (GetCharmerGUID())
     {
-        sLog.outCrash("Unit::SetCharmedBy: %u (GUID %u) has already been charmed but %u (GUID %u) is trying to charm it!", GetEntry(), GetGUIDLow(), charmer->GetEntry(), charmer->GetGUIDLow());
+        sLog->outCrash("Unit::SetCharmedBy: %u (GUID %u) has already been charmed but %u (GUID %u) is trying to charm it!", GetEntry(), GetGUIDLow(), charmer->GetEntry(), charmer->GetGUIDLow());
         return false;
     }
 
@@ -15413,7 +15446,7 @@ bool Unit::SetCharmedBy(Unit* charmer, CharmType type, AuraApplication const * a
     // StopCastingCharm may remove a possessed pet?
     if (!IsInWorld())
     {
-        sLog.outCrash("Unit::SetCharmedBy: %u (GUID %u) is not in world but %u (GUID %u) is trying to charm it!", GetEntry(), GetGUIDLow(), charmer->GetEntry(), charmer->GetGUIDLow());
+        sLog->outCrash("Unit::SetCharmedBy: %u (GUID %u) is not in world but %u (GUID %u) is trying to charm it!", GetEntry(), GetGUIDLow(), charmer->GetEntry(), charmer->GetGUIDLow());
         return false;
     }
 
@@ -15467,7 +15500,7 @@ bool Unit::SetCharmedBy(Unit* charmer, CharmType type, AuraApplication const * a
                 charmer->ToPlayer()->VehicleSpellInitialize();
                 break;
             case CHARM_TYPE_POSSESS:
-                addUnitState(UNIT_STAT_POSSESSED);
+                AddUnitState(UNIT_STAT_POSSESSED);
                 SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PLAYER_CONTROLLED);
                 charmer->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_DISABLE_MOVE);
                 charmer->ToPlayer()->SetClientControl(this, 1);
@@ -15485,7 +15518,7 @@ bool Unit::SetCharmedBy(Unit* charmer, CharmType type, AuraApplication const * a
 
                         //just to enable stat window
                         if (GetCharmInfo())
-                            GetCharmInfo()->SetPetNumber(sObjectMgr.GeneratePetNumber(), true);
+                            GetCharmInfo()->SetPetNumber(sObjectMgr->GeneratePetNumber(), true);
 
                         //if charmed two demons the same session, the 2nd gets the 1st one's name
                         SetUInt32Value(UNIT_FIELD_PET_NAME_TIMESTAMP, uint32(time(NULL))); // cast can't be helped
@@ -15510,14 +15543,14 @@ void Unit::RemoveCharmedBy(Unit *charmer)
         charmer = GetCharmer();
     if (charmer != GetCharmer()) // one aura overrides another?
     {
-//        sLog.outCrash("Unit::RemoveCharmedBy: this: " UI64FMTD " true charmer: " UI64FMTD " false charmer: " UI64FMTD,
+//        sLog->outCrash("Unit::RemoveCharmedBy: this: " UI64FMTD " true charmer: " UI64FMTD " false charmer: " UI64FMTD,
 //            GetGUID(), GetCharmerGUID(), charmer->GetGUID());
 //        ASSERT(false);
         return;
     }
 
     CharmType type;
-    if (hasUnitState(UNIT_STAT_POSSESSED))
+    if (HasUnitState(UNIT_STAT_POSSESSED))
         type = CHARM_TYPE_POSSESS;
     else if (charmer->IsOnVehicle(this))
         type = CHARM_TYPE_VEHICLE;
@@ -15535,7 +15568,7 @@ void Unit::RemoveCharmedBy(Unit *charmer)
 
     if (type == CHARM_TYPE_POSSESS)
     {
-        clearUnitState(UNIT_STAT_POSSESSED);
+        ClearUnitState(UNIT_STAT_POSSESSED);
         RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PLAYER_CONTROLLED);
     }
 
@@ -15586,7 +15619,7 @@ void Unit::RemoveCharmedBy(Unit *charmer)
                         if (GetCharmInfo())
                             GetCharmInfo()->SetPetNumber(0, true);
                         else
-                            sLog.outError("Aura::HandleModCharm: target="UI64FMTD" with typeid=%d has a charm aura but no charm info!", GetGUID(), GetTypeId());
+                            sLog->outError("Aura::HandleModCharm: target="UI64FMTD" with typeid=%d has a charm aura but no charm info!", GetGUID(), GetTypeId());
                     }
                 }
                 break;
@@ -15820,11 +15853,14 @@ void Unit::GetPartyMembers(std::list<Unit*> &TagUnitMap)
 
 Aura * Unit::AddAura(uint32 spellId, Unit *target)
 {
-    if (!target || !target->isAlive())
+    if (!target)
         return NULL;
 
     SpellEntry const *spellInfo = sSpellStore.LookupEntry(spellId);
     if (!spellInfo)
+        return NULL;
+
+    if (!target->isAlive() && !(spellInfo->Attributes & SPELL_ATTR0_PASSIVE) && !(spellInfo->AttributesEx2 & SPELL_ATTR2_ALLOW_DEAD_TARGET))
         return NULL;
 
     return AddAura(spellInfo, MAX_EFFECT_MASK, target);
@@ -15984,7 +16020,7 @@ void Unit::UpdateObjectVisibility(bool forced)
         WorldObject::UpdateObjectVisibility(true);
         // call MoveInLineOfSight for nearby creatures
         Trinity::AIRelocationNotifier notifier(*this);
-        VisitNearbyObject(GetMap()->GetVisibilityDistance(), notifier);
+        VisitNearbyObject(GetVisibilityRange(), notifier);
     }
 }
 
@@ -16072,7 +16108,7 @@ uint32 Unit::GetModelForForm(ShapeshiftForm form)
                         return 892;
                 }
             }
-			else if (getRace() == RACE_TROLL)
+            else if (getRace() == RACE_TROLL)
             {
                 uint8 hairColor = GetByteValue(PLAYER_BYTES, 3);
                 switch (hairColor)
@@ -16092,7 +16128,7 @@ uint32 Unit::GetModelForForm(ShapeshiftForm form)
                         return 33668;
                 }
             }
-			else if (getRace() == RACE_WORGEN)
+            else if (getRace() == RACE_WORGEN)
             {
                 uint8 hairColor = GetByteValue(PLAYER_BYTES, 3);
                 switch (hairColor)
@@ -16191,7 +16227,7 @@ uint32 Unit::GetModelForForm(ShapeshiftForm form)
                         return 2281;
                 }
             }
-			else if (getRace() == RACE_TROLL)
+            else if (getRace() == RACE_TROLL)
             {
                 uint8 hairColor = GetByteValue(PLAYER_BYTES, 3);
                 switch (hairColor)
@@ -16210,7 +16246,7 @@ uint32 Unit::GetModelForForm(ShapeshiftForm form)
                         return 33656;
                 }
             }
-			else if (getRace() == RACE_WORGEN)
+            else if (getRace() == RACE_WORGEN)
             {
                 uint8 hairColor = GetByteValue(PLAYER_BYTES, 3);
                 switch (hairColor)
@@ -16400,6 +16436,21 @@ uint32 Unit::GetModelForTotem(PlayerTotemType totemType)
             }
             break;
         }
+        case RACE_GOBLIN:
+        {
+            switch(totemType)
+            {
+                case SUMMON_TYPE_TOTEM_FIRE:    //fire
+                    return 30783;
+                case SUMMON_TYPE_TOTEM_EARTH:   //earth
+                    return 30782;
+                case SUMMON_TYPE_TOTEM_WATER:   //water
+                    return 30784;
+                case SUMMON_TYPE_TOTEM_AIR:     //air
+                    return 30781;
+            }
+            break;
+        }
     }
     return 0;
 }
@@ -16449,7 +16500,7 @@ bool Unit::CheckPlayerCondition(Player* pPlayer)
     }
 }
 
-void Unit::EnterVehicle(Vehicle *vehicle, int8 seatId)
+void Unit::EnterVehicle(Vehicle *vehicle, int8 seatId, bool byAura)
 {
     if (!isAlive() || GetVehicleKit() == vehicle)
         return;
@@ -16458,16 +16509,16 @@ void Unit::EnterVehicle(Vehicle *vehicle, int8 seatId)
     {
         if (m_vehicle == vehicle)
         {
-            if (seatId >= 0)
+            if (seatId >= 0 && seatId != GetTransSeat())
             {
-                sLog.outDebug("EnterVehicle: %u leave vehicle %u seat %d and enter %d.", GetEntry(), m_vehicle->GetBase()->GetEntry(), GetTransSeat(), seatId);
-                ChangeSeat(seatId);
+                sLog->outDebug("EnterVehicle: %u leave vehicle %u seat %d and enter %d.", GetEntry(), m_vehicle->GetBase()->GetEntry(), GetTransSeat(), seatId);
+                ChangeSeat(seatId, byAura);
             }
             return;
         }
         else
         {
-            sLog.outDebug("EnterVehicle: %u exit %u and enter %u.", GetEntry(), m_vehicle->GetBase()->GetEntry(), vehicle->GetBase()->GetEntry());
+            sLog->outDebug("EnterVehicle: %u exit %u and enter %u.", GetEntry(), m_vehicle->GetBase()->GetEntry(), vehicle->GetBase()->GetEntry());
             ExitVehicle();
         }
     }
@@ -16490,32 +16541,35 @@ void Unit::EnterVehicle(Vehicle *vehicle, int8 seatId)
 
     ASSERT(!m_vehicle);
     m_vehicle = vehicle;
-    if (!m_vehicle->AddPassenger(this, seatId))
+    if (!m_vehicle->AddPassenger(this, seatId, byAura))
     {
         m_vehicle = NULL;
         return;
     }
 
+    if (Player* thisPlr = this->ToPlayer())
+    {
+        WorldPacket data(SMSG_ON_CANCEL_EXPECTED_RIDE_VEHICLE_AURA, 0);
+        thisPlr->GetSession()->SendPacket(&data);
+
+        data.Initialize(SMSG_BREAK_TARGET, 7);
+        data.append(vehicle->GetBase()->GetPackGUID());
+        thisPlr->GetSession()->SendPacket(&data);
+    }
+
     SetControlled(true, UNIT_STAT_ROOT);
     //movementInfo is set in AddPassenger
     //packets are sent in AddPassenger
-
-    if (GetTypeId() == TYPEID_PLAYER)
-    {
-        //this->ToPlayer()->SetClientControl(vehicle, 1);
-        WorldPacket data(SMSG_ON_CANCEL_EXPECTED_RIDE_VEHICLE_AURA, 0);
-        this->ToPlayer()->GetSession()->SendPacket(&data);
-    }
 }
 
-void Unit::ChangeSeat(int8 seatId, bool next)
+void Unit::ChangeSeat(int8 seatId, bool next, bool byAura)
 {
     if (!m_vehicle)
         return;
 
     if (seatId < 0)
     {
-        seatId = m_vehicle->GetNextEmptySeat(GetTransSeat(), next);
+        seatId = m_vehicle->GetNextEmptySeat(GetTransSeat(), next, byAura);
         if (seatId < 0)
             return;
     }
@@ -16523,7 +16577,7 @@ void Unit::ChangeSeat(int8 seatId, bool next)
         return;
 
     m_vehicle->RemovePassenger(this);
-    if (!m_vehicle->AddPassenger(this, seatId))
+    if (!m_vehicle->AddPassenger(this, seatId, byAura))
         ASSERT(false);
 }
 
@@ -16546,7 +16600,7 @@ void Unit::ExitVehicle()
     if (!m_vehicle)
         return;
 
-    //sLog.outError("exit vehicle");
+    //sLog->outError("exit vehicle");
 
     m_vehicle->RemovePassenger(this);
 
@@ -16583,22 +16637,28 @@ void Unit::BuildMovementPacket(ByteBuffer *data) const
 {
     switch (GetTypeId())
     {
-    case TYPEID_UNIT:
-        if (canFly())
-            const_cast<Unit*>(this)->AddUnitMovementFlag(MOVEMENTFLAG_LEVITATING);
-        break;
-    case TYPEID_PLAYER:
-        // remove unknown, unused etc flags for now
-        const_cast<Unit*>(this)->RemoveUnitMovementFlag(MOVEMENTFLAG_SPLINE_ENABLED);
-        if (isInFlight())
-        {
-            WPAssert(const_cast<Unit*>(this)->GetMotionMaster()->GetCurrentMovementGeneratorType() == FLIGHT_MOTION_TYPE);
-            const_cast<Unit*>(this)->AddUnitMovementFlag(MOVEMENTFLAG_FORWARD | MOVEMENTFLAG_SPLINE_ENABLED);
-        }
-        break;
-    default:
-        break;
+        case TYPEID_UNIT:
+            if (canFly())
+                const_cast<Unit*>(this)->AddUnitMovementFlag(MOVEMENTFLAG_LEVITATING);
+            if (IsVehicle())
+                const_cast<Unit*>(this)->AddExtraUnitMovementFlag(GetVehicleKit()->GetExtraMovementFlagsForBase());
+            break;
+        case TYPEID_PLAYER:
+            // remove unknown, unused etc flags for now
+            const_cast<Unit*>(this)->RemoveUnitMovementFlag(MOVEMENTFLAG_SPLINE_ENABLED);
+            if (isInFlight())
+            {
+                WPAssert(const_cast<Unit*>(this)->GetMotionMaster()->GetCurrentMovementGeneratorType() == FLIGHT_MOTION_TYPE);
+                const_cast<Unit*>(this)->AddUnitMovementFlag(MOVEMENTFLAG_FORWARD | MOVEMENTFLAG_SPLINE_ENABLED);
+            }
+            break;
+        default:
+            break;
     }
+
+    if (GetVehicle())
+        if (!this->HasUnitMovementFlag(MOVEMENTFLAG_ROOT))
+            sLog->outError("Unit does not have MOVEMENTFLAG_ROOT but is in vehicle!");
 
     *data << uint32(GetUnitMovementFlags()); // movement flags
     *data << uint16(m_movementInfo.flags2); // 2.3.0
@@ -16616,10 +16676,8 @@ void Unit::BuildMovementPacket(ByteBuffer *data) const
         else if (GetTransport())
             data->append(GetTransport()->GetPackGUID());
         else
-        {
-            sLog.outError("Unit %u does not have transport!", GetEntry());
             *data << (uint8)0;
-        }
+        
         *data << float (GetTransOffsetX());
         *data << float (GetTransOffsetY());
         *data << float (GetTransOffsetZ());
@@ -16687,7 +16745,7 @@ bool Unit::SetPosition(float x, float y, float z, float orientation, bool telepo
     // prevent crash when a bad coord is sent by the client
     if (!Trinity::IsValidMapCoord(x,y,z,orientation))
     {
-        sLog.outDebug("Unit::SetPosition(%f, %f, %f) .. bad coordinates!",x,y,z);
+        sLog->outDebug("Unit::SetPosition(%f, %f, %f) .. bad coordinates!",x,y,z);
         return false;
     }
 
@@ -16720,7 +16778,7 @@ void Unit::SendThreatListUpdate()
 {
     if (uint32 count = getThreatManager().getThreatList().size())
     {
-        //sLog.outDebug("WORLD: Send SMSG_THREAT_UPDATE Message");
+        //sLog->outDebug("WORLD: Send SMSG_THREAT_UPDATE Message");
         WorldPacket data(SMSG_THREAT_UPDATE, 8 + count * 8);
         data.append(GetPackGUID());
         data << uint32(count);
@@ -16738,7 +16796,7 @@ void Unit::SendChangeCurrentVictimOpcode(HostileReference* pHostileReference)
 {
     if (uint32 count = getThreatManager().getThreatList().size())
     {
-        sLog.outDebug("WORLD: Send SMSG_HIGHEST_THREAT_UPDATE Message");
+        sLog->outDebug("WORLD: Send SMSG_HIGHEST_THREAT_UPDATE Message");
         WorldPacket data(SMSG_HIGHEST_THREAT_UPDATE, 8 + 8 + count * 8);
         data.append(GetPackGUID());
         data.appendPackGUID(pHostileReference->getUnitGuid());
@@ -16755,7 +16813,7 @@ void Unit::SendChangeCurrentVictimOpcode(HostileReference* pHostileReference)
 
 void Unit::SendClearThreatListOpcode()
 {
-    sLog.outDebug("WORLD: Send SMSG_THREAT_CLEAR Message");
+    sLog->outDebug("WORLD: Send SMSG_THREAT_CLEAR Message");
     WorldPacket data(SMSG_THREAT_CLEAR, 8);
     data.append(GetPackGUID());
     SendMessageToSet(&data, false);
@@ -16763,7 +16821,7 @@ void Unit::SendClearThreatListOpcode()
 
 void Unit::SendRemoveFromThreatListOpcode(HostileReference* pHostileReference)
 {
-    sLog.outDebug("WORLD: Send SMSG_THREAT_REMOVE Message");
+    sLog->outDebug("WORLD: Send SMSG_THREAT_REMOVE Message");
     WorldPacket data(SMSG_THREAT_REMOVE, 8 + 8);
     data.append(GetPackGUID());
     data.appendPackGUID(pHostileReference->getUnitGuid());
@@ -16796,7 +16854,7 @@ void Unit::RewardRage(uint32 damage, uint32 weaponSpeedHitFactor, bool attacker)
             addRage *= 2.0f;
     }
 
-    addRage *= sWorld.getRate(RATE_POWER_RAGE_INCOME);
+    addRage *= sWorld->getRate(RATE_POWER_RAGE_INCOME);
 
     ModifyPower(POWER_RAGE, uint32(addRage*10));
 }
@@ -16837,39 +16895,39 @@ void Unit::StopAttackFaction(uint32 faction_id)
 
 void Unit::OutDebugInfo() const
 {
-    sLog.outError("Unit::OutDebugInfo");
-    sLog.outString("GUID "UI64FMTD", entry %u, type %u, name %s", GetGUID(), GetEntry(), (uint32)GetTypeId(), GetName());
-    sLog.outString("OwnerGUID "UI64FMTD", MinionGUID "UI64FMTD", CharmerGUID "UI64FMTD", CharmedGUID "UI64FMTD, GetOwnerGUID(), GetMinionGUID(), GetCharmerGUID(), GetCharmGUID());
-    sLog.outString("In world %u, unit type mask %u", (uint32)(IsInWorld() ? 1 : 0), m_unitTypeMask);
+    sLog->outError("Unit::OutDebugInfo");
+    sLog->outString("GUID "UI64FMTD", entry %u, type %u, name %s", GetGUID(), GetEntry(), (uint32)GetTypeId(), GetName());
+    sLog->outString("OwnerGUID "UI64FMTD", MinionGUID "UI64FMTD", CharmerGUID "UI64FMTD", CharmedGUID "UI64FMTD, GetOwnerGUID(), GetMinionGUID(), GetCharmerGUID(), GetCharmGUID());
+    sLog->outString("In world %u, unit type mask %u", (uint32)(IsInWorld() ? 1 : 0), m_unitTypeMask);
     if (IsInWorld())
-        sLog.outString("Mapid %u", GetMapId());
+        sLog->outString("Mapid %u", GetMapId());
 
-    sLog.outStringInLine("Summon Slot: ");
+    sLog->outStringInLine("Summon Slot: ");
     for (uint32 i = 0; i < MAX_SUMMON_SLOT; ++i)
-        sLog.outStringInLine(UI64FMTD", ", m_SummonSlot[i]);
-    sLog.outString();
+        sLog->outStringInLine(UI64FMTD", ", m_SummonSlot[i]);
+    sLog->outString();
 
-    sLog.outStringInLine("Controlled List: ");
+    sLog->outStringInLine("Controlled List: ");
     for (ControlList::const_iterator itr = m_Controlled.begin(); itr != m_Controlled.end(); ++itr)
-        sLog.outStringInLine(UI64FMTD", ", (*itr)->GetGUID());
-    sLog.outString();
+        sLog->outStringInLine(UI64FMTD", ", (*itr)->GetGUID());
+    sLog->outString();
 
-    sLog.outStringInLine("Aura List: ");
+    sLog->outStringInLine("Aura List: ");
     for (AuraApplicationMap::const_iterator itr = m_appliedAuras.begin(); itr != m_appliedAuras.end(); ++itr)
-        sLog.outStringInLine("%u, ", itr->first);
-    sLog.outString();
+        sLog->outStringInLine("%u, ", itr->first);
+    sLog->outString();
 
     if (IsVehicle())
     {
-        sLog.outStringInLine("Passenger List: ");
+        sLog->outStringInLine("Passenger List: ");
         for (SeatMap::iterator itr = GetVehicleKit()->m_Seats.begin(); itr != GetVehicleKit()->m_Seats.end(); ++itr)
             if (Unit *passenger = itr->second.passenger)
-                sLog.outStringInLine(UI64FMTD", ", passenger->GetGUID());
-        sLog.outString();
+                sLog->outStringInLine(UI64FMTD", ", passenger->GetGUID());
+        sLog->outString();
     }
 
     if (GetVehicle())
-        sLog.outString("On vehicle %u.", GetVehicleBase()->GetEntry());
+        sLog->outString("On vehicle %u.", GetVehicleBase()->GetEntry());
 }
 
 uint32 Unit::GetRemainingDotDamage(uint64 caster, uint32 spellId, uint8 effectIndex) const

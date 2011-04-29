@@ -270,7 +270,7 @@ struct AchievementCriteriaEntry
         struct
         {
             uint32  skillID;                                // 3
-            uint32  skillLevel;                             // 4 apprentice=1, journeyman=2, expert=3, artisan=4, master=5, grand master=6
+            uint32  skillLevel;                             // 4 apprentice=1, journeyman=2, expert=3, artisan=4, master=5, grand master=6, professional illustrious grand master=7
         } learn_skill_level;
 
         // ACHIEVEMENT_CRITERIA_TYPE_USE_ITEM               = 41
@@ -620,9 +620,9 @@ struct BarberShopStyleEntry
 
 struct BattlemasterListEntry
 {
-    uint32  id;                                             // 0
+    uint32  id;                                             // 0 m_id
     int32   mapid[8];                                       // 1-8 mapid
-    uint32  type;                                           // 9 (3 - BG, 4 - arena)
+    uint32  MapType;                                        // 9 (3 - BG, 4 - arena)
     //uint32 canJoinAsGroup;                                // 10 (0 or 1)
     DBCString name;                                         // 11
     uint32 maxGroupSize;                                    // 12 maxGroupSize, used for checking if queue as group
@@ -631,8 +631,8 @@ struct BattlemasterListEntry
     uint32 maxLevel;                                        // 15, max level (sync with PvPDifficulty.dbc content)
     uint32 maxGroupSizeRated;                               // 16 4.0.1
     uint32 maxPlayers;                                      // 17 4.0.1
-    uint32 minPlayers;                                      // 18 4.0.6
-    uint32 rated;                                           // 19 4.0.3 value 2 for Rated Battlegrounds
+    uint32 rated;                                           // 18 4.0.3 value 2 for Rated Battlegrounds
+    //uint32 unknown                                        // 19 4.0.x
 };
 
 #define MAX_OUTFIT_ITEMS 24
@@ -1398,7 +1398,7 @@ struct ScalingStatValuesEntry
     //uint32 trash[24];                                     // 22-45
     //uint32 unk2;                                          // 46 unk, probably also Armor for level (flag 0x80000?)
     
-    uint32  getssdMultiplier(uint32 mask) const
+    uint32 getssdMultiplier(uint32 mask) const
     {
         if (mask & 0x4001F)
         {
@@ -1412,7 +1412,7 @@ struct ScalingStatValuesEntry
         return 0;
     }
 
-    uint32  getArmorMod(uint32 mask) const
+    uint32 getArmorMod(uint32 mask) const
     {
         if (mask & 0x00F001E0)
         {
@@ -1606,7 +1606,7 @@ struct SpellEffectEntry
     uint32    EffectApplyAuraName;                          // 3        m_effectAura
     uint32    EffectAmplitude;                              // 4        m_effectAuraPeriod
     int32     EffectBasePoints;                             // 5        m_effectBasePoints (don't must be used in spell/auras explicitly, must be used cached Spell::m_currentBasePoints)
-    float     unk_multiplier;                               // 6        3.2.0 used in spell scaling formulas?
+    float     EffectBonusCoefficient;                       // 6        m_effectBonusCoefficient
     float     EffectDamageMultiplier;                       // 7        m_effectChainAmplitude
     uint32    EffectChainTarget;                            // 8        m_effectChainTargets
     int32     EffectDieSides;                               // 9        m_effectDieSides
@@ -1861,7 +1861,7 @@ struct SpellEntry
         uint32    EffectApplyAuraName[3];
         uint32    EffectAmplitude[3];
         int32     EffectBasePoints[3];
-        float     unk_multiplier[3];
+        float     EffectBonusCoefficient[3];
         float     EffectDamageMultiplier[3];
         uint32    EffectChainTarget[3];
         int32     EffectDieSides[3];
@@ -2309,7 +2309,8 @@ struct VehicleSeatEntry
     //uint32 unk2;                                          // 64 4.0.0
     //uint32 unk3;                                          // 65 4.0.1
 
-    bool IsUsable() const { return m_flags & VEHICLE_SEAT_FLAG_USABLE; }
+    bool IsUsableByPlayer() const { return m_flags & VEHICLE_SEAT_FLAG_USABLE; }
+    bool IsUsableByAura() const { return m_flagsB & (VEHICLE_SEAT_FLAG_B_USABLE_FORCED | VEHICLE_SEAT_FLAG_B_USABLE_FORCED_2 | VEHICLE_SEAT_FLAG_B_USABLE_FORCED_3); }
 };
 
 struct WMOAreaTableEntry

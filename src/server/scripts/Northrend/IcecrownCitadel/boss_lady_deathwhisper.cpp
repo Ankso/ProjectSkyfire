@@ -17,6 +17,7 @@
 
 #include "ScriptPCH.h"
 #include "icecrown_citadel.h"
+#include "Group.h"
 
 enum eScriptTexts
 {
@@ -344,7 +345,7 @@ class boss_lady_deathwhisper : public CreatureScript
 
                 events.Update(diff);
 
-                if (me->hasUnitState(UNIT_STAT_CASTING) && !(events.GetPhaseMask() & PHASE_INTRO_MASK))
+                if (me->HasUnitState(UNIT_STAT_CASTING) && !(events.GetPhaseMask() & PHASE_INTRO_MASK))
                     return;
 
                 while (uint32 eventId = events.ExecuteEvent())
@@ -591,7 +592,7 @@ class npc_cult_fanatic : public CreatureScript
 
                 events.Update(diff);
 
-                if (me->hasUnitState(UNIT_STAT_CASTING))
+                if (me->HasUnitState(UNIT_STAT_CASTING))
                     return;
 
                 while (uint32 eventId = events.ExecuteEvent())
@@ -669,7 +670,7 @@ class npc_cult_adherent : public CreatureScript
 
                 events.Update(diff);
 
-                if (me->hasUnitState(UNIT_STAT_CASTING))
+                if (me->HasUnitState(UNIT_STAT_CASTING))
                     return;
 
                 while (uint32 eventId = events.ExecuteEvent())
@@ -796,7 +797,7 @@ class spell_cultist_dark_martyrdom : public SpellScriptLoader
             PrepareSpellScript(spell_cultist_dark_martyrdom_SpellScript)
             bool Validate(SpellEntry const* /*spellEntry*/)
             {
-                if (uint32 scriptId = sObjectMgr.GetScriptId("boss_lady_deathwhisper"))
+                if (uint32 scriptId = sObjectMgr->GetScriptId("boss_lady_deathwhisper"))
                     if (CreatureInfo const* creInfo = ObjectMgr::GetCreatureTemplate(NPC_LADY_DEATHWHISPER))
                         if (creInfo->ScriptID == scriptId)
                             return true;

@@ -280,7 +280,7 @@ class boss_blood_council_controller : public CreatureScript
 
                 events.Update(diff);
 
-                if (me->hasUnitState(UNIT_STAT_CASTING))
+                if (me->HasUnitState(UNIT_STAT_CASTING))
                     return;
 
                 while (uint32 eventId = events.ExecuteEvent())
@@ -357,7 +357,7 @@ class boss_prince_keleseth_icc : public CreatureScript
 
             void InitializeAI()
             {
-                if (CreatureData const* data = sObjectMgr.GetCreatureData(me->GetDBTableGUIDLow()))
+                if (CreatureData const* data = sObjectMgr->GetCreatureData(me->GetDBTableGUIDLow()))
                     if (data->curhealth)
                         spawnHealth = data->curhealth;
 
@@ -476,7 +476,7 @@ class boss_prince_keleseth_icc : public CreatureScript
 
                 events.Update(diff);
 
-                if (me->hasUnitState(UNIT_STAT_CASTING))
+                if (me->HasUnitState(UNIT_STAT_CASTING))
                     return;
 
                 while (uint32 eventId = events.ExecuteEvent())
@@ -533,7 +533,7 @@ class boss_prince_taldaram_icc : public CreatureScript
 
             void InitializeAI()
             {
-                if (CreatureData const* data = sObjectMgr.GetCreatureData(me->GetDBTableGUIDLow()))
+                if (CreatureData const* data = sObjectMgr->GetCreatureData(me->GetDBTableGUIDLow()))
                     if (data->curhealth)
                         spawnHealth = data->curhealth;
 
@@ -661,7 +661,7 @@ class boss_prince_taldaram_icc : public CreatureScript
 
                 events.Update(diff);
 
-                if (me->hasUnitState(UNIT_STAT_CASTING))
+                if (me->HasUnitState(UNIT_STAT_CASTING))
                     return;
 
                 while (uint32 eventId = events.ExecuteEvent())
@@ -723,7 +723,7 @@ class boss_prince_valanar_icc : public CreatureScript
 
             void InitializeAI()
             {
-                if (CreatureData const* data = sObjectMgr.GetCreatureData(me->GetDBTableGUIDLow()))
+                if (CreatureData const* data = sObjectMgr->GetCreatureData(me->GetDBTableGUIDLow()))
                     if (data->curhealth)
                         spawnHealth = data->curhealth;
 
@@ -865,7 +865,7 @@ class boss_prince_valanar_icc : public CreatureScript
 
                 events.Update(diff);
 
-                if (me->hasUnitState(UNIT_STAT_CASTING))
+                if (me->HasUnitState(UNIT_STAT_CASTING))
                     return;
 
                 while (uint32 eventId = events.ExecuteEvent())
@@ -944,11 +944,11 @@ class npc_blood_queen_lana_thel : public CreatureScript
                 me->AddUnitMovementFlag(MOVEMENTFLAG_LEVITATING);
                 if (instance->GetBossState(DATA_BLOOD_PRINCE_COUNCIL) == DONE)
                 {
-                    me->SetVisibility(VISIBILITY_OFF);
+                    me->SetVisible(false);
                     bIntroDone = true;
                 }
                 else
-                    me->SetVisibility(VISIBILITY_ON);
+                    me->SetVisible(true);
             }
 
             void MoveInLineOfSight(Unit* who)
@@ -975,7 +975,7 @@ class npc_blood_queen_lana_thel : public CreatureScript
             void MovementInform(uint32 type, uint32 id)
             {
                 if (type == POINT_MOTION_TYPE && id == POINT_INTRO_DESPAWN)
-                    me->SetVisibility(VISIBILITY_OFF);
+                    me->SetVisible(false);
             }
 
             void UpdateAI(const uint32 diff)
@@ -1062,7 +1062,7 @@ class npc_ball_of_flame : public CreatureScript
                     if (Player* target = ObjectAccessor::GetPlayer(*me, chaseGUID))
                     {
                         // need to clear states now because this call is before AuraEffect is fully removed
-                        me->clearUnitState(UNIT_STAT_CASTING | UNIT_STAT_STUNNED);
+                        me->ClearUnitState(UNIT_STAT_CASTING | UNIT_STAT_STUNNED);
                         if (target && me->Attack(target, true))
                             me->GetMotionMaster()->MoveChase(target, 1.0f);
                     }
@@ -1135,7 +1135,7 @@ class npc_kinetic_bomb : public CreatureScript
                     switch (eventId)
                     {
                         case EVENT_BOMB_DESPAWN:
-                            me->SetVisibility(VISIBILITY_OFF);
+                            me->SetVisible(false);
                             break;
                         case EVENT_CONTINUE_FALLING:
                             me->GetMotionMaster()->Clear();
@@ -1187,7 +1187,7 @@ class npc_dark_nucleus : public CreatureScript
                 }
 
                 DoCast(who, SPELL_SHADOW_RESONANCE_RESIST);
-                me->clearUnitState(UNIT_STAT_CASTING);
+                me->ClearUnitState(UNIT_STAT_CASTING);
             }
 
             void MoveInLineOfSight(Unit* who)
@@ -1221,7 +1221,7 @@ class npc_dark_nucleus : public CreatureScript
                             !victim->HasAura(SPELL_SHADOW_RESONANCE_RESIST, me->GetGUID()))
                         {
                             DoCast(victim, SPELL_SHADOW_RESONANCE_RESIST);
-                            me->clearUnitState(UNIT_STAT_CASTING);
+                            me->ClearUnitState(UNIT_STAT_CASTING);
                         }
                 }
                 else
@@ -1240,7 +1240,7 @@ class npc_dark_nucleus : public CreatureScript
                         lockedTarget = true;
                         AttackStart(victim);
                         DoCast(victim, SPELL_SHADOW_RESONANCE_RESIST);
-                        me->clearUnitState(UNIT_STAT_CASTING);
+                        me->ClearUnitState(UNIT_STAT_CASTING);
                     }
                 }
             }

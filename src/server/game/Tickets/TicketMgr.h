@@ -29,11 +29,12 @@
 #include "DatabaseEnv.h"
 #include "SQLStorage.h"
 #include "SQLStorageImpl.h"
+#include "World.h"
 
 // from blizzard lua
 enum GMTicketSystemStatus
 {
-    GMTICKET_QUEUE_STATUS_DISABLED = -1,
+    GMTICKET_QUEUE_STATUS_DISABLED = 0,
     GMTICKET_QUEUE_STATUS_ENABLED = 1,
 };
 
@@ -139,6 +140,11 @@ public:
     uint64 GetOpenTicketCount() const { return m_openTickets; }
     uint64 GetNextSurveyID() { return ++m_GMSurveyID; }
 
+    void Initialize()
+    {
+        SetStatus(sWorld->getBoolConfig(CONFIG_ALLOW_TICKETS));
+    }
+
     GM_Ticket *GetOldestOpenGMTicket()
     {
         for (GmTicketList::const_iterator i = m_GMTicketList.begin(); i != m_GMTicketList.end(); ++i)
@@ -162,6 +168,6 @@ protected:
     time_t lastChange;
 };
 
-#define sTicketMgr (*ACE_Singleton<TicketMgr, ACE_Null_Mutex>::instance())
+#define sTicketMgr ACE_Singleton<TicketMgr, ACE_Null_Mutex>::instance()
 
 #endif // _TICKETMGR_H

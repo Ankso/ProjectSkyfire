@@ -575,7 +575,7 @@ public:
 
     struct npc_nesingwary_trapperAI : public ScriptedAI
     {
-        npc_nesingwary_trapperAI(Creature *c) : ScriptedAI(c) { c->SetVisibility(VISIBILITY_OFF); }
+        npc_nesingwary_trapperAI(Creature *c) : ScriptedAI(c) { c->SetVisible(false); }
 
         uint64 go_caribouGUID;
         uint8  Phase;
@@ -583,7 +583,7 @@ public:
 
         void Reset()
         {
-            me->SetVisibility(VISIBILITY_OFF);
+            me->SetVisible(false);
             uiPhaseTimer = 2500;
             Phase = 1;
             go_caribouGUID = 0;
@@ -613,7 +613,7 @@ public:
                 switch (Phase)
                 {
                     case 1:
-                        me->SetVisibility(VISIBILITY_ON);
+                        me->SetVisible(true);
                         uiPhaseTimer = 2000;
                         Phase = 2;
                         break;
@@ -1328,7 +1328,7 @@ public:
             if (uiType != POINT_MOTION_TYPE)
                 return;
 
-            me->addUnitState(UNIT_STAT_STUNNED);
+            me->AddUnitState(UNIT_STAT_STUNNED);
             me->CastSpell(me, SPELL_STUN, true);
             if (me->isSummon())
                 if (Unit* pSummoner = CAST_SUM(me)->GetSummoner())
@@ -1445,7 +1445,7 @@ public:
             DoScriptText(SAY_LERYSSA_1, pLeryssa);
             pArlos->Kill(pArlos, false);
             pLeryssa->RemoveAura(SPELL_STUN);
-            pLeryssa->clearUnitState(UNIT_STAT_STUNNED);
+            pLeryssa->ClearUnitState(UNIT_STAT_STUNNED);
             pLeryssa->RemoveUnitMovementFlag(MOVEMENTFLAG_WALKING);
             pLeryssa->GetMotionMaster()->MovePoint(0,3722.114502f, 3564.201660f, 477.441437f);
 
@@ -1495,7 +1495,7 @@ public:
                 if (Creature* pTalbot = me->FindNearestCreature(NPC_PRINCE_VALANAR, 50.0f, true))
                     CAST_AI(npc_counselor_talbot::npc_counselor_talbotAI, pTalbot->AI())->bCheck = true;
 
-                me->addUnitState(UNIT_STAT_STUNNED);
+                me->AddUnitState(UNIT_STAT_STUNNED);
                 me->CastSpell(me, SPELL_STUN, true);
 
                 if (me->isSummon())
@@ -2130,7 +2130,7 @@ public:
                 (me->HasAura(SPELL_AURA_NOTSOBIG_1) || me->HasAura(SPELL_AURA_NOTSOBIG_2) ||
                 me->HasAura(SPELL_AURA_NOTSOBIG_3) || me->HasAura(SPELL_AURA_NOTSOBIG_4)))
             {
-                Quest const* qInfo = sObjectMgr.GetQuestTemplate(QUEST_YOU_RE_NOT_SO_BIG_NOW);
+                Quest const* qInfo = sObjectMgr->GetQuestTemplate(QUEST_YOU_RE_NOT_SO_BIG_NOW);
                 if (qInfo)
                     CAST_PLR(pKiller)->KilledMonsterCredit(qInfo->ReqCreatureOrGOId[0],0);
             }

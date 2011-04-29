@@ -425,7 +425,7 @@ public:
         {
             me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
             me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
-            me->addUnitState(UNIT_STAT_STUNNED);
+            me->AddUnitState(UNIT_STAT_STUNNED);
 
             ScriptedAI::InitializeAI();
         }
@@ -603,7 +603,7 @@ public:
             {
                 summoned->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
                 summoned->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
-        //      summoned->SetVisibility(VISIBILITY_OFF);  //with this we cant see the armageddon visuals
+        //      summoned->SetVisible(false);  //with this we cant see the armageddon visuals
             }
             else
                 summoned->SetLevel(me->getLevel());
@@ -760,7 +760,7 @@ public:
                                 if (pRandomPlayer)
                                     DoCast(pRandomPlayer, SPELL_LEGION_LIGHTNING, false);
                                 else
-                                    sLog.outError("try to cast SPELL_LEGION_LIGHTNING on invalid target");
+                                    sLog->outError("try to cast SPELL_LEGION_LIGHTNING on invalid target");
 
                                 Timer[TIMER_LEGION_LIGHTNING] = (Phase == PHASE_SACRIFICE) ? 18000 : 30000; // 18 seconds in PHASE_SACRIFICE
                                 Timer[TIMER_SOUL_FLAY] = 2500;
@@ -1422,7 +1422,7 @@ public:
                     DoMeleeAttackIfReady();
                     break;
                 }
-                sLog.outDebug("Sinister-Timer");
+                sLog->outDebug("Sinister-Timer");
                 for (uint8 i = 0; i < 3; ++i)
                     uiTimer[i] -= diff;
             }

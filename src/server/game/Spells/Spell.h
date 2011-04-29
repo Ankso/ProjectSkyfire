@@ -528,7 +528,7 @@ class Spell
         void ReSetTimer() { m_timer = m_casttime > 0 ? m_casttime : 0; }
         bool IsNextMeleeSwingSpell() const
         {
-            return m_spellInfo->Attributes & SPELL_ATTR_ON_NEXT_SWING;
+            return m_spellInfo->Attributes & SPELL_ATTR0_ON_NEXT_SWING;
         }
         bool IsTriggered() const {return m_IsTriggeredSpell;};
         bool IsChannelActive() const { return m_caster->GetUInt32Value(UNIT_CHANNEL_SPELL) != 0; }
@@ -777,7 +777,7 @@ namespace Trinity
             {
                 Unit *target = (Unit*)itr->getSource();
 
-                if (!target->InSamePhase(i_source))
+                if (!i_source->canSeeOrDetect(target, true))
                     continue;
 
                 switch (i_TargetType)

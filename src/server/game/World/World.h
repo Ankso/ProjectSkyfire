@@ -146,7 +146,6 @@ enum WorldBoolConfigs
     CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN,
     CONFIG_VMAP_INDOOR_CHECK,
     CONFIG_PET_LOS,
-    CONFIG_BG_START_MUSIC,
     CONFIG_START_ALL_SPELLS,
     CONFIG_START_ALL_EXPLORED,
     CONFIG_START_ALL_REP,
@@ -166,6 +165,8 @@ enum WorldBoolConfigs
     CONFIG_DUNGEON_FINDER_ENABLE,
     CONFIG_AUTOBROADCAST,
     CONFIG_GUILD_ADVANCEMENT_ENABLED,
+    CONFIG_ALLOW_TICKETS,
+    CONFIG_PRESERVE_CUSTOM_CHANNELS,
     BOOL_CONFIG_VALUE_COUNT
 };
 
@@ -194,7 +195,6 @@ enum WorldIntConfigs
     CONFIG_INTERVAL_CHANGEWEATHER,
     CONFIG_INTERVAL_DISCONNECT_TOLERANCE,
     CONFIG_PORT_WORLD,
-    CONFIG_SOCKET_SELECTTIME,
     CONFIG_SOCKET_TIMEOUTTIME,
     CONFIG_SESSION_ADD_DELAY,
     CONFIG_GAME_TYPE,
@@ -310,6 +310,7 @@ enum WorldIntConfigs
     CONFIG_AUTOBROADCAST_INTERVAL,
     CONFIG_MAX_RESULTS_LOOKUP_COMMANDS,
     CONFIG_DB_PING_INTERVAL,
+    CONFIG_PRESERVE_CUSTOM_CHANNEL_DURATION,
     CONFIG_GUILD_ADVANCEMENT_MAX_LEVEL,
     INT_CONFIG_VALUE_COUNT
 };
@@ -709,11 +710,6 @@ class World
         static float GetMaxVisibleDistanceOnContinents()    { return m_MaxVisibleDistanceOnContinents; }
         static float GetMaxVisibleDistanceInInstances()     { return m_MaxVisibleDistanceInInstances;  }
         static float GetMaxVisibleDistanceInBGArenas()      { return m_MaxVisibleDistanceInBGArenas;   }
-        static float GetMaxVisibleDistanceForObject()       { return m_MaxVisibleDistanceForObject;    }
-
-        static float GetMaxVisibleDistanceInFlight()        { return m_MaxVisibleDistanceInFlight;     }
-        static float GetVisibleUnitGreyDistance()           { return m_VisibleUnitGreyDistance;        }
-        static float GetVisibleObjectGreyDistance()         { return m_VisibleObjectGreyDistance;      }
 
         static int32 GetVisibilityNotifyPeriodOnContinents(){ return m_visibility_notify_periodOnContinents; }
         static int32 GetVisibilityNotifyPeriodInInstances() { return m_visibility_notify_periodInInstances;  }
@@ -807,11 +803,6 @@ class World
         static float m_MaxVisibleDistanceOnContinents;
         static float m_MaxVisibleDistanceInInstances;
         static float m_MaxVisibleDistanceInBGArenas;
-        static float m_MaxVisibleDistanceForObject;
-
-        static float m_MaxVisibleDistanceInFlight;
-        static float m_VisibleUnitGreyDistance;
-        static float m_VisibleObjectGreyDistance;
 
         static int32 m_visibility_notify_periodOnContinents;
         static int32 m_visibility_notify_periodInInstances;
@@ -845,6 +836,6 @@ class World
 
 extern uint32 realmID;
 
-#define sWorld (*ACE_Singleton<World, ACE_Null_Mutex>::instance())
+#define sWorld ACE_Singleton<World, ACE_Null_Mutex>::instance()
 #endif
 /// @}

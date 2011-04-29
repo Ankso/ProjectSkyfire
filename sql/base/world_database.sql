@@ -76,6 +76,38 @@ LOCK TABLES `achievement_criteria_data` WRITE;
 UNLOCK TABLES;
 
 --
+-- Table structure for table `achievement_dbc`
+--
+
+DROP TABLE IF EXISTS `achievement_dbc`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `achievement_dbc` (
+  `ID` int(10) unsigned NOT NULL,
+  `requiredFaction` int(11) NOT NULL DEFAULT '-1',
+  `mapID` int(11) NOT NULL DEFAULT '-1',
+  `points` int(10) unsigned NOT NULL DEFAULT '0',
+  `flags` int(10) unsigned NOT NULL DEFAULT '0',
+  `count` int(10) unsigned NOT NULL DEFAULT '0',
+  `refAchievement` int(10) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`ID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `achievement_dbc`
+--
+
+LOCK TABLES `achievement_dbc` WRITE;
+/*!40000 ALTER TABLE `achievement_dbc` DISABLE KEYS */;
+INSERT INTO `achievement_dbc` VALUES
+(3696,-1,-1,0,2,1,0), -- Earned the right to represent a city in the Argent Tournament
+(4788,-1,-1,0,2,1,0), -- Is exalted with The Aldor or has any of exalted rewards
+(4789,-1,-1,0,2,1,0); -- Is exalted with The Scryers or has any of exalted rewards
+/*!40000 ALTER TABLE `achievement_dbc` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `achievement_reward`
 --
 
@@ -604,6 +636,7 @@ INSERT INTO `command` VALUES
 ('reload skill_extra_item_template',3,'Syntax: .reload skill_extra_item_template\nReload skill_extra_item_template table.'),
 ('reload skill_fishing_base_level',3,'Syntax: .reload skill_fishing_base_level\nReload skill_fishing_base_level table.'),
 ('reload skinning_loot_template',3,'Syntax: .reload skinning_loot_template\nReload skinning_loot_template table.'),
+('reload smart_scripts',3,'Syntax: .reload smart_scripts\nReload smart_scripts table.'),
 ('reload spell_area',3,'Syntax: .reload spell_area\nReload spell_area table.'),
 ('reload spell_bonus_data',3,'Syntax: .reload spell_bonus_data\nReload spell_bonus_data table.'),
 ('reload spell_group',3,'Syntax: .reload spell_group\nReload spell_group table.'),
@@ -618,6 +651,7 @@ INSERT INTO `command` VALUES
 ('reload spell_target_position',3,'Syntax: .reload spell_target_position\nReload spell_target_position table.'),
 ('reload spell_threats',3,'Syntax: .reload spell_threats\nReload spell_threats table.'),
 ('reload creature_template','3','Syntax: .reload creature_template $entry\r\nReload the specified creature''s template.'),
+('reload creature_text',3,'Syntax: .reload creature_text\r\nReload creature_text table.'),
 ('reload trinity_string',3,'Syntax: .reload trinity_string\nReload trinity_string table.'),
 ('reload waypoint_scripts',3,'Syntax: .reload waypoint_scripts\nReload waypoint_scripts table.'),
 ('repairitems',2,'Syntax: .repairitems\r\n\r\nRepair all selected player''s items.'),
@@ -1713,6 +1747,38 @@ LOCK TABLES `creature_template_addon` WRITE;
 UNLOCK TABLES;
 
 --
+-- Table structure for table `creature_text`
+--
+
+DROP TABLE IF EXISTS `creature_text`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `creature_text` (
+  `entry` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `groupid` tinyint(3) unsigned NOT NULL DEFAULT '0',
+  `id` tinyint(3) unsigned NOT NULL DEFAULT '0',
+  `text` longtext,
+  `type` tinyint(3) unsigned NOT NULL DEFAULT '0',
+  `language` tinyint(3) unsigned NOT NULL DEFAULT '0',
+  `probability` float NOT NULL DEFAULT '0',
+  `emote` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `duration` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `sound` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `comment` varchar(255) DEFAULT '',
+  PRIMARY KEY (`entry`,`groupid`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `creature_text`
+--
+
+LOCK TABLES `creature_text` WRITE;
+/*!40000 ALTER TABLE `creature_text` DISABLE KEYS */;
+/*!40000 ALTER TABLE `creature_text` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `creature_transport`
 --
 
@@ -2682,6 +2748,14 @@ CREATE TABLE `gameobject_template` (
   `data21` int(10) unsigned NOT NULL DEFAULT '0',
   `data22` int(10) unsigned NOT NULL DEFAULT '0',
   `data23` int(10) unsigned NOT NULL DEFAULT '0',
+  `data24` int(10) unsigned NOT NULL DEFAULT '0',
+  `data25` int(10) unsigned NOT NULL DEFAULT '0',
+  `data26` int(10) unsigned NOT NULL DEFAULT '0',
+  `data27` int(10) unsigned NOT NULL DEFAULT '0',
+  `data28` int(10) unsigned NOT NULL DEFAULT '0',
+  `data29` int(10) unsigned NOT NULL DEFAULT '0',
+  `data30` int(10) unsigned NOT NULL DEFAULT '0',
+  `data31` int(10) unsigned NOT NULL DEFAULT '0',
   `AIName` char(64) NOT NULL DEFAULT '',
   `ScriptName` varchar(64) NOT NULL DEFAULT '',
   `WDBVerified` smallint(5) signed DEFAULT '1',
@@ -16766,6 +16840,55 @@ LOCK TABLES `skinning_loot_template` WRITE;
 UNLOCK TABLES;
 
 --
+-- Table structure for table `smart_scripts`
+--
+
+DROP TABLE IF EXISTS `smart_scripts`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `smart_scripts` (
+  `entryorguid` int(11) NOT NULL,
+  `source_type` tinyint(3) unsigned NOT NULL DEFAULT '0',
+  `id` smallint(5) unsigned NOT NULL DEFAULT '0',
+  `link` smallint(5) unsigned NOT NULL DEFAULT '0',
+  `event_type` tinyint(3) unsigned NOT NULL DEFAULT '0',
+  `event_phase_mask` tinyint(3) unsigned NOT NULL DEFAULT '0',
+  `event_chance` tinyint(3) unsigned NOT NULL DEFAULT '100',
+  `event_flags` tinyint(3) unsigned NOT NULL DEFAULT '0',
+  `event_param1` int(10) unsigned NOT NULL DEFAULT '0',
+  `event_param2` int(10) unsigned NOT NULL DEFAULT '0',
+  `event_param3` int(10) unsigned NOT NULL DEFAULT '0',
+  `event_param4` int(10) unsigned NOT NULL DEFAULT '0',
+  `action_type` tinyint(3) unsigned NOT NULL DEFAULT '0',
+  `action_param1` int(10) unsigned NOT NULL DEFAULT '0',
+  `action_param2` int(10) unsigned NOT NULL DEFAULT '0',
+  `action_param3` int(10) unsigned NOT NULL DEFAULT '0',
+  `action_param4` int(10) unsigned NOT NULL DEFAULT '0',
+  `action_param5` int(10) unsigned NOT NULL DEFAULT '0',
+  `action_param6` int(10) unsigned NOT NULL DEFAULT '0',
+  `target_type` tinyint(3) unsigned NOT NULL DEFAULT '0',
+  `target_param1` int(10) unsigned NOT NULL DEFAULT '0',
+  `target_param2` int(10) unsigned NOT NULL DEFAULT '0',
+  `target_param3` int(10) unsigned NOT NULL DEFAULT '0',
+  `target_x` float NOT NULL DEFAULT '0',
+  `target_y` float NOT NULL DEFAULT '0',
+  `target_z` float NOT NULL DEFAULT '0',
+  `target_o` float NOT NULL DEFAULT '0',
+  `comment` TEXT CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL COMMENT 'Event Comment',
+  PRIMARY KEY (`entryorguid`,`source_type`,`id`,`link`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=FIXED;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `smart_scripts`
+--
+
+LOCK TABLES `smart_scripts` WRITE;
+/*!40000 ALTER TABLE `smart_scripts` DISABLE KEYS */;
+/*!40000 ALTER TABLE `smart_scripts` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `spell_area`
 --
 
@@ -27863,7 +27986,7 @@ DROP TABLE IF EXISTS `version`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `version` (
   `core_version` varchar(120) DEFAULT NULL COMMENT 'Core revision dumped at startup.',
-  `core_revision` bigint(20) unsigned DEFAULT NULL,
+  `core_revision` varchar(120) DEFAULT NULL,
   `db_version` varchar(120) DEFAULT NULL COMMENT 'Version of world DB.',
   `script_version` varchar(120) DEFAULT NULL COMMENT 'Version of scripts DB.',
   `cache_id` int(10) DEFAULT '0'

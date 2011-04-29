@@ -24,6 +24,8 @@
 #define TRINITY_DBCSFRM_H
 
 const char Achievementfmt[]="niixsxiixixxii";
+//const std::string CustomAchievementfmt="pppaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaapapaaaaaaaaaaaaaaaaaapp";
+//const std::string CustomAchievementIndex = "ID";
 const char AchievementCriteriafmt[]="niiiiiiiisiiiiixxxxxxxx";
 const char AreaTableEntryfmt[]="iiinixxxxxisixxxxxxxxxxxx";
 const char AreaGroupEntryfmt[]="niiiiiii";
@@ -33,7 +35,7 @@ const char ArmorLocationfmt[]="nfffff";
 const char AuctionHouseEntryfmt[]="niiix";
 const char BankBagSlotPricesEntryfmt[]="ni";
 const char BarberShopStyleEntryfmt[]="nixxxiii";
-const char BattlemasterListEntryfmt[]="niiiiiiiiixsiiiiiiii";
+const char BattlemasterListEntryfmt[]="niiiiiiiiixsiiiiiiix";
 const char CharStartOutfitEntryfmt[]="diiiiiiiiiiiiiiiiiiiiiiiiixxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
 const char CharTitlesEntryfmt[]="nxsxix";
 const char ChatChannelsEntryfmt[]="nixsx";
@@ -69,7 +71,6 @@ const char GtRegenHPPerSptfmt[]="xf";
 const char GtRegenMPPerSptfmt[]="xf";
 const char GtSpellScalingfmt[]="nf";
 const char Holidaysfmt[]="nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
-//const char Itemfmt[]="niiiiiii";
 const char ItemArmorQualityfmt[]="nfffffffi";
 const char ItemArmorShieldfmt[]="nifffffff";
 const char ItemArmorTotalfmt[]="niffff";

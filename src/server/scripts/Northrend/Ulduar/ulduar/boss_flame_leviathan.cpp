@@ -397,11 +397,11 @@ public:
             if (me->HasAura(SPELL_SYSTEMS_SHUTDOWN))
             {
                 me->SetReactState(REACT_PASSIVE);
-                me->addUnitState(UNIT_STAT_STUNNED | UNIT_STAT_ROOT);
+                me->AddUnitState(UNIT_STAT_STUNNED | UNIT_STAT_ROOT);
                 return;
             }
 
-            if (me->hasUnitState(UNIT_STAT_CASTING))
+            if (me->HasUnitState(UNIT_STAT_CASTING))
                 return;
 
             if (me->HasAura(SPELL_SYSTEMS_SHUTDOWN))
@@ -466,7 +466,7 @@ public:
                 break;
             case EVENT_REPAIR:
                 me->MonsterTextEmote(EMOTE_REPAIR, 0, true);
-                me->clearUnitState(UNIT_STAT_STUNNED | UNIT_STAT_ROOT);
+                me->ClearUnitState(UNIT_STAT_STUNNED | UNIT_STAT_ROOT);
                 InstallAdds(false);
                 events.CancelEvent(EVENT_REPAIR);
                 break;
@@ -1204,7 +1204,7 @@ public:
             if (Creature* pLeviathan = instance->instance->GetCreature(instance->GetData64(TYPE_LEVIATHAN)))
             {
                 CAST_AI(boss_flame_leviathan::boss_flame_leviathanAI, (pLeviathan->AI()))->DoAction(0); //enable hard mode activating the 4 additional events spawning additional vehicles
-                pCreature->SetVisibility(VISIBILITY_OFF);
+                pCreature->SetVisible(false);
                 pCreature->AI()->DoAction(0); // spawn the vehicles
                 if (Creature* Delorah = pCreature->FindNearestCreature(NPC_DELORAH, 1000, true))
                 {

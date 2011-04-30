@@ -447,7 +447,7 @@ bool ChatHandler::HandleReloadCreatureQuestRelationsCommand(const char*)
 bool ChatHandler::HandleReloadCreatureLinkedRespawnCommand(const char * /*args*/)
 {
     sLog->outString("Loading Linked Respawns... (`creature_linked_respawn`)");
-    sObjectMgr->LoadCreatureLinkedRespawn();
+    sObjectMgr->LoadLinkedRespawn();
     SendGlobalGMSysMessage("DB table `creature_linked_respawn` (creature linked respawns) reloaded.");
     return true;
 }
@@ -4242,9 +4242,6 @@ bool ChatHandler::HandleNpcInfoCommand(const char* /*args*/)
     PSendSysMessage(LANG_NPCINFO_PHASEMASK, target->GetPhaseMask());
     PSendSysMessage(LANG_NPCINFO_ARMOR, target->GetArmor());
     PSendSysMessage(LANG_NPCINFO_POSITION,float(target->GetPositionX()), float(target->GetPositionY()), float(target->GetPositionZ()));
-    if (const CreatureData* const linked = target->GetLinkedRespawnCreatureData())
-        if (CreatureInfo const *master = GetCreatureInfo(linked->id))
-            PSendSysMessage(LANG_NPCINFO_LINKGUID, sObjectMgr->GetLinkedRespawnGuid(target->GetDBTableGUIDLow()), linked->id, master->Name);
 
     if ((npcflags & UNIT_NPC_FLAG_VENDOR))
     {
@@ -5234,11 +5231,8 @@ bool ChatHandler::HandleQuestRemove(const char *args)
         }
     }
 
-    // set quest status to not started (will updated in DB at next save)
-    player->SetQuestStatus(entry, QUEST_STATUS_NONE);
-
-    // reset rewarded for restart repeatable quest
-    player->getQuestStatusMap()[entry].m_rewarded = false;
+    player->RemoveActiveQuest(entry);
+    player->RemoveRewardedQuest(entry);
 
     SendSysMessage(LANG_COMMAND_QUEST_REMOVED);
     return true;

@@ -212,11 +212,9 @@ class account_commandscript : public CommandScript
                 ///- Get the username, last IP and GM level of each account
                 // No SQL injection. account is uint32.
                 QueryResult resultLogin =
-                    LoginDatabase.PQuery("SELECT a.username, a.last_ip, aa.gmlevel, a.expansion "
-                                         "FROM account a "
-                                         "LEFT JOIN account_access aa "
-                                         "ON (a.id = aa.id) "
-                                         "WHERE a.id = '%u'", account);
+                    LoginDatabase.PQuery("SELECT username, last_ip, gmlevel, expansion "
+                                         "FROM account"
+                                         "WHERE id = '%u'", account);
                 if (resultLogin)
                 {
                     Field *fieldsLogin = resultLogin->Fetch();
@@ -453,7 +451,7 @@ class account_commandscript : public CommandScript
             // Check and abort if the target gm has a higher rank on one of the realms and the new realm is -1
             if (gmRealmID == -1)
             {
-                QueryResult result = LoginDatabase.PQuery("SELECT * FROM account_access WHERE id = '%u' AND gmlevel > '%d'", targetAccountId, gm);
+                QueryResult result = LoginDatabase.PQuery("SELECT * FROM account WHERE id = '%u' AND gmlevel > '%d'", targetAccountId, gm);
                 if (result)
                 {
                     handler->SendSysMessage(LANG_YOURS_SECURITY_IS_LOW);
@@ -471,13 +469,13 @@ class account_commandscript : public CommandScript
             }
 
             // If gmRealmID is -1, delete all values for the account id, else, insert values for the specific realmID
-            if (gmRealmID == -1)
+            /*if (gmRealmID == -1)
                 LoginDatabase.PExecute("DELETE FROM account_access WHERE id = '%u'", targetAccountId);
             else
-                LoginDatabase.PExecute("DELETE FROM account_access WHERE id = '%u' AND (RealmID = '%d' OR RealmID = '-1')", targetAccountId, realmID);
+                LoginDatabase.PExecute("DELETE FROM account_access WHERE id = '%u' AND (RealmID = '%d' OR RealmID = '-1')", targetAccountId, realmID);*/
 
             if (gm != 0)
-                LoginDatabase.PExecute("INSERT INTO account_access VALUES ('%u','%d','%d')", targetAccountId, gm, realmID);
+                LoginDatabase.PExecute("UPDATE account SET gmlevel = %d WHERE id = %u", gm, targetAccountId);
             handler->PSendSysMessage(LANG_YOU_CHANGE_SECURITY, targetAccountName.c_str(), gm);
             return true;
         }

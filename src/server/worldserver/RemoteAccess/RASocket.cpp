@@ -183,7 +183,7 @@ int RASocket::check_access_level(const std::string& user)
     AccountMgr::normalizeString(safe_user);
     LoginDatabase.escape_string(safe_user);
 
-    QueryResult result = LoginDatabase.PQuery("SELECT a.id, aa.gmlevel, aa.RealmID FROM account a LEFT JOIN account_access aa ON (a.id = aa.id) WHERE a.username = '%s'", safe_user.c_str());
+    QueryResult result = LoginDatabase.PQuery("SELECT id, gmlevel, RealmID FROM account WHERE a.username = '%s'", safe_user.c_str());
 
     if (!result)
     {

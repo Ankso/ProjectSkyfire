@@ -6691,7 +6691,7 @@ bool ChatHandler::HandleInstanceSaveDataCommand(const char * /*args*/)
 bool ChatHandler::HandleGMListFullCommand(const char* /*args*/)
 {
     ///- Get the accounts with GM Level >0
-    QueryResult result = LoginDatabase.Query("SELECT a.username,aa.gmlevel FROM account a, account_access aa WHERE a.id=aa.id AND aa.gmlevel > 0");
+    QueryResult result = LoginDatabase.Query("SELECT username,gmlevel FROM account WHERE gmlevel > 0");
     if (result)
     {
         SendSysMessage(LANG_GMLIST);
